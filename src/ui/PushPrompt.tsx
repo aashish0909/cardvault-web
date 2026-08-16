@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 
 import { useAppInstall } from '../lib/install';
 import {
+  currentPushSubscription,
   isIOS,
   isStandalonePwa,
   pushPermission,
@@ -51,7 +52,10 @@ export default function PushPrompt({ phase = 'unlocked' }: { phase?: Phase }) {
       }
       const perm = pushPermission();
       if (perm === 'granted') {
-        setKind('hidden');
+        void currentPushSubscription().then((sub) => {
+          if (!sub) setKind('enable');
+          else setKind('hidden');
+        });
         return;
       }
       if (perm === 'denied') {
