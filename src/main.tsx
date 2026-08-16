@@ -23,12 +23,15 @@ createRoot(root).render(
 // Offline shell / PWA installability / Web Push transport. Guarded per
 // feature: not all browsers or deployments support each one.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-  // Reload once a newer service worker takes control, so installed users
-  // never sit on a stale shell whose cached assets were just deleted.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  // Reload when a *new* worker takes over an already-controlled page.
+  // Do not reload on the first claim (Safari/Chrome can loop: claim →
+  // controllerchange → reload → claim again).
+  let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
     window.location.reload();
   });
   // The worker re-subscribed after a pushsubscriptionchange; mirror the new

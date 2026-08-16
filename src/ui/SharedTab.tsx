@@ -14,7 +14,24 @@ export default function SharedTab({ onReceive }: { onReceive: () => void }) {
   const inbox = useStore(useInboxStore);
 
   const reload = useCallback(() => {
-    void db.listSharedCards().then(setCards);
+    void db.listSharedCards().then((next) => {
+      setCards((prev) => {
+        if (
+          prev &&
+          prev.length === next.length &&
+          prev.every(
+            (c, i) =>
+              c.id === next[i]?.id &&
+              c.status === next[i]?.status &&
+              c.label === next[i]?.label &&
+              c.nickname === next[i]?.nickname
+          )
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    });
   }, []);
 
   useEffect(() => {

@@ -39,10 +39,32 @@ export default function SharedCardDetail({
   const reload = useCallback(async () => {
     const s = await db.getSharedCard(sharedId);
     if (!s) return;
-    setShared(s);
+    setShared((prev) =>
+      prev &&
+      prev.id === s.id &&
+      prev.status === s.status &&
+      prev.label === s.label &&
+      prev.nickname === s.nickname
+        ? prev
+        : s
+    );
     const peer = await db.getPeer(s.peerId);
-    if (peer) setOwnerName(peer.name);
-    setRequests(await db.listRequests());
+    if (peer) setOwnerName((n) => (n === peer.name ? n : peer.name));
+    const rows = await db.listRequests();
+    setRequests((prev) => {
+      if (
+        prev.length === rows.length &&
+        prev.every(
+          (r, i) =>
+            r.id === rows[i]?.id &&
+            r.status === rows[i]?.status &&
+            r.windowExpiresAt === rows[i]?.windowExpiresAt
+        )
+      ) {
+        return prev;
+      }
+      return rows;
+    });
   }, [sharedId]);
 
   useEffect(() => {
