@@ -4,11 +4,10 @@
 // without this, the JS/CSS assets 404 and you get a black screen).
 //
 // The asset list below is injected at build time (vite.config.ts) with the
-// real hashed URLs. Navigations are network-first to stay current. Relay
-// traffic never touches this worker (it goes straight to the relay origin,
-// not through here).
+// real hashed URLs. Navigations are network-first to stay current. Same-origin
+// /v1/* relay calls are excluded from fetch handling so they are never cached.
 
-const CACHE = 'cardvault-v9';
+const CACHE = 'cardvault-v10';
 const PRECACHE =
   typeof __PRECACHE_ASSETS__ !== 'undefined' ? __PRECACHE_ASSETS__ : [];
 
@@ -43,6 +42,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Production serves the PWA and relay on one origin. Caching GET /v1/blobs
+  // (or pairing-code lookups) freezes the inbox on the first 200 and friend /
+  // card requests never arrive. Let those hit the network directly.
+  if (url.pathname.startsWith('/v1/') || url.pathname === '/health') return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
