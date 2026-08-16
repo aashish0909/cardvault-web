@@ -45,11 +45,16 @@ export async function sealTo(
   return bytesToBase64(utf8Bytes(JSON.stringify(envelope)));
 }
 
+export interface OpenedEnvelope {
+  plaintext: string;
+  senderPub: string; // hex; authenticated by the box tag
+}
+
 /**
  * Open a sealed envelope with our own secret key. Throws if the payload is
  * not from the claimed sender or has been tampered with.
  */
-export async function openFrom(sealedBase64: string): Promise<string> {
+export async function openEnvelope(sealedBase64: string): Promise<OpenedEnvelope> {
   const identity = await getIdentity();
   const envelope = JSON.parse(
     bytesToUtf8(base64ToBytes(sealedBase64))
@@ -70,5 +75,9 @@ export async function openFrom(sealedBase64: string): Promise<string> {
   if (!opened) {
     throw new Error('Message failed authentication (wrong sender or tampered)');
   }
-  return bytesToUtf8(opened);
+  return { plaintext: bytesToUtf8(opened), senderPub: envelope.senderPub };
+}
+
+export async function openFrom(sealedBase64: string): Promise<string> {
+  return (await openEnvelope(sealedBase64)).plaintext;
 }

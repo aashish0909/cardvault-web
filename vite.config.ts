@@ -1,12 +1,10 @@
 // Vite config + strict Content-Security-Policy injection.
 //
-// The CSP is the web app's most important security control: it is the
-// backstop against XSS, so the production bundle gets a nonce-based policy
-// with no 'unsafe-inline'/'unsafe-eval' for scripts, no remote sources, and
-// connect-src locked to the relay origin. Dev mode is intentionally looser
-// (Vite's HMR preamble needs it) - the strict policy applies to `vite build`.
+// Production CSP is the web app's backstop against XSS: no 'unsafe-inline' /
+// 'unsafe-eval', no remote script/style, connect-src locked to this origin
+// (plus VITE_RELAY_URL when the relay is hosted separately). Dev is looser
+// because Vite's HMR preamble is an inline module script.
 
-import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -23,12 +21,23 @@ const relayHost = (() => {
   }
 })();
 
-// The dev cert's SAN must include the LAN IP as an iPAddress entry or
-// browsers on other devices hard-refuse the TLS handshake - see
-// scripts/dev-cert.mjs.
-
-function nonce(attrs: string): string {
-  return attrs.includes('nonce') ? attrs : `nonce="${randomBytes(16).toString('base64')}" ${attrs}`;
+function productionCsp(): string {
+  const connectSrc = relayHost ? `'self' ${relayHost}` : "'self'";
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    `connect-src ${connectSrc}`,
+    "manifest-src 'self'",
+    "worker-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "font-src 'self'",
+    "frame-src 'none'",
+    'upgrade-insecure-requests',
+  ].join('; ');
 }
 
 function cspPlugin(): Plugin {
@@ -38,19 +47,13 @@ function cspPlugin(): Plugin {
       order: 'post',
       handler(html, ctx) {
         if (ctx.server) {
-          // Dev only: Vite's HMR preamble is an inline module script, and a
-          // nonce in the policy disables 'unsafe-inline' entirely, so dev
-          // must use 'unsafe-inline'. The strict nonce policy applies to
-          // `vite build`.
           const devCsp = [
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
-            // Dev only: the app must reach the relay from any LAN device
-            // (http://<lan-ip>:8787). Production locks connect-src to the
-            // single relay origin in the nonce policy below.
-            "connect-src 'self' http://*:* ws://*:*",
+            // LAN devices load over https://<lan-ip>; HMR is wss on the same host.
+            "connect-src 'self' http://*:* https://*:* ws://*:* wss://*:*",
             "manifest-src 'self'",
             "worker-src 'self'",
             "object-src 'none'",
@@ -63,27 +66,8 @@ function cspPlugin(): Plugin {
             `<head>\n    <meta http-equiv="Content-Security-Policy" content="${devCsp}" />`
           );
         }
-        const nonceValue = randomBytes(16).toString('base64');
-        const connectSrc = relayHost ? `'self' ${relayHost}` : "'self'";
-        const csp = [
-          "default-src 'self'",
-          `script-src 'self' 'nonce-${nonceValue}'`,
-          "style-src 'self'",
-          "img-src 'self' data:",
-          `connect-src ${connectSrc}`,
-          "manifest-src 'self'",
-          "worker-src 'self'",
-          "object-src 'none'",
-          "base-uri 'none'",
-          "form-action 'self'",
-          "font-src 'self'",
-          'upgrade-insecure-requests',
-        ].join('; ');
-        const meta = `<meta http-equiv="Content-Security-Policy" content="${csp}" />`;
-        const withNonce = html.replace(/<script([^>]*)>/g, (_, attrs: string) =>
-          `<script ${nonce(attrs.trim())}>`
-        );
-        return withNonce.replace('<head>', `<head>\n    ${meta}`);
+        const meta = `<meta http-equiv="Content-Security-Policy" content="${productionCsp()}" />`;
+        return html.replace('<head>', `<head>\n    ${meta}`);
       },
     },
   };
@@ -130,14 +114,23 @@ const { key, cert } = devCert();
 export default defineConfig({
   plugins: [react(), cspPlugin(), precachePlugin()],
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 5173,
+    strictPort: true,
+    allowedHosts: true,
     https: { key: readFileSync(key), cert: readFileSync(cert) },
     // Dev: relay calls are same-origin (/v1/*) so LAN devices work over
-    // HTTPS only; proxy them to the local relay.
+    // HTTPS only; proxy them to the local relay. Timeout must exceed the
+    // relay's 25s long-poll.
     proxy: {
       '/v1': {
-        target: 'http://localhost:8787',
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+        timeout: 35_000,
+        proxyTimeout: 35_000,
+      },
+      '/health': {
+        target: 'http://127.0.0.1:8787',
         changeOrigin: true,
       },
     },

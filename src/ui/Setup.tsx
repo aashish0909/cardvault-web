@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 
-import { createPasskeyEnrollment, setupVault } from '../lib/vault';
+import { createPasskeyEnrollment, passphraseIssue, setupVault } from '../lib/vault';
 import { passkeySupportIssue } from '../lib/webauthn';
 import type { PasskeyEnrollment } from '../lib/webauthn';
 
@@ -45,7 +45,8 @@ export default function Setup({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     setError(null);
     if (name.trim().length < 1) return setError('Enter a display name for this device.');
-    if (pass.length < 8) return setError('Passphrase must be at least 8 characters.');
+    const weak = passphraseIssue(pass);
+    if (weak) return setError(weak);
     if (pass !== confirm) return setError('Passphrases do not match.');
     setBusy(true);
     try {
@@ -90,6 +91,9 @@ export default function Setup({ onDone }: { onDone: () => void }) {
             onChange={(e) => setPass(e.target.value)}
             autoComplete="new-password"
           />
+          <p className="muted" style={{ fontSize: '0.85em' }}>
+            At least 12 characters. This is the only recovery path if biometrics break.
+          </p>
         </div>
         <div className="field">
           <label htmlFor="confirm">Confirm passphrase</label>

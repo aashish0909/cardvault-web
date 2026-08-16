@@ -3,16 +3,24 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import * as db from '../lib/db';
-import { sendBlob, unshareCard } from '../lib/relay';
-import { useInboxStore } from '../lib/relay';
+import { pairingFingerprint } from '../lib/identity';
+import { sendBlob, unshareCard, useInboxStore } from '../lib/relay';
 import { useStore } from '../lib/store';
 
 export default function FriendsTab({ onPair }: { onPair: () => void }) {
   const [peers, setPeers] = useState<db.PeerRow[] | null>(null);
+  const [prints, setPrints] = useState<Record<string, string>>({});
   const inbox = useStore(useInboxStore);
 
   const reload = useCallback(() => {
-    void db.listPeers().then(setPeers);
+    void db.listPeers().then((rows) => {
+      setPeers(rows);
+      void Promise.all(
+        rows
+          .filter((p) => p.status === 'pending')
+          .map(async (p) => [p.id, await pairingFingerprint(p.publicKey)] as const)
+      ).then((entries) => setPrints(Object.fromEntries(entries)));
+    });
   }, []);
 
   useEffect(() => {
@@ -89,6 +97,17 @@ export default function FriendsTab({ onPair }: { onPair: () => void }) {
               )}
             </div>
             <div className="sub">{p.id.slice(0, 8)}…</div>
+            {p.status === 'pending' && prints[p.id] && (
+              <div className="fingerprint-inline">
+                <span className="fingerprint-label">Fingerprint</span>{' '}
+                <span className="fingerprint mono">{prints[p.id]}</span>
+                {p.direction === 'in' && (
+                  <div className="muted">
+                    Match this with the number on their screen before accepting.
+                  </div>
+                )}
+              </div>
+            )}
             <div className="row" style={{ marginTop: 10 }}>
               {p.status === 'pending' && p.direction === 'in' && (
                 <>

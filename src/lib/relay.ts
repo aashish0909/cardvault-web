@@ -6,7 +6,7 @@
 // server only ever sees opaque base64.
 
 import { getRelayUrl } from './config';
-import { openFrom, sealTo } from './e2e';
+import { openEnvelope, sealTo } from './e2e';
 import { getIdentity } from './vault';
 import type { Identity } from './identity';
 import { notify } from './notify';
@@ -315,6 +315,33 @@ export async function revokeRequest(
   await ctx.setRequestStatus(request.id, 'revoked');
 }
 
+function samePub(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+/**
+ * Decrypt a blob and, when we already know this sender, require the envelope
+ * key to match the stored peer key. A mismatch means a device id is being
+ * impersonated with a different identity key.
+ */
+async function openPeerBlob(
+  blob: { from: string; payload: string },
+  ctx: IncomingCtx
+): Promise<{ data: Record<string, unknown>; senderPub: string; peer: db.PeerRow | null }> {
+  const { plaintext, senderPub } = await openEnvelope(blob.payload);
+  const peer = await ctx.getPeer(blob.from);
+  if (peer && !samePub(peer.publicKey, senderPub)) {
+    throw new Error('sender key does not match peer record');
+  }
+  const data = asRecord(JSON.parse(plaintext));
+  if (!data) throw new Error('malformed blob payload');
+  return { data, senderPub, peer };
+}
+
 /**
  * Decrypt and apply one incoming blob. Returns a short human-readable note
  * (or null if it was unhandled / failed authentication - those are dropped).
@@ -326,7 +353,7 @@ export async function handleIncomingBlob(
   try {
     switch (blob.kind) {
       case 'pair-request': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data, senderPub } = await openPeerBlob(blob, ctx);
         if (
           typeof data.deviceId !== 'string' ||
           typeof data.name !== 'string' ||
@@ -334,8 +361,10 @@ export async function handleIncomingBlob(
         ) {
           return null;
         }
+        if (data.deviceId !== blob.from || !samePub(data.pub, senderPub)) return null;
         const existing = await ctx.getPeer(data.deviceId);
         if (existing && existing.status === 'paired') return null;
+        if (existing && !samePub(existing.publicKey, data.pub)) return null;
         await ctx.upsertPeer({
           id: data.deviceId,
           name: data.name,
@@ -346,31 +375,31 @@ export async function handleIncomingBlob(
         return `pair request from ${data.name}`;
       }
       case 'pair-accept': {
-        const existing = await ctx.getPeer(blob.from);
+        const { peer } = await openPeerBlob(blob, ctx);
         // Pair regardless of direction: the accept is authoritative and must
         // reflect on the requester even when requests crossed (both peers sent
         // each other a request, so each peer row ends up direction 'in').
-        if (!existing || existing.status === 'paired') return null;
+        if (!peer || peer.status === 'paired') return null;
         await ctx.setPeerStatus(blob.from, 'paired');
-        return `paired with ${existing.name}`;
+        return `paired with ${peer.name}`;
       }
       case 'pair-decline': {
+        const { peer } = await openPeerBlob(blob, ctx);
+        if (!peer) return null;
         await ctx.deletePeer(blob.from);
         await ctx.removeSharedCardsByPeer(blob.from);
         return 'peer removed';
       }
       case 'name-update': {
-        const data = JSON.parse(await openFrom(blob.payload));
-        if (typeof data.name !== 'string') return null;
-        const existing = await ctx.getPeer(blob.from);
-        if (!existing) return null;
+        const { data, peer } = await openPeerBlob(blob, ctx);
+        if (!peer || typeof data.name !== 'string') return null;
         const name = data.name.trim().slice(0, 40) || 'Friend';
-        if (name === existing.name) return null;
+        if (name === peer.name) return null;
         await ctx.setPeerName(blob.from, name);
         return `name updated: ${name}`;
       }
       case 'card-share': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data } = await openPeerBlob(blob, ctx);
         if (
           typeof data.cardId !== 'string' ||
           typeof data.nickname !== 'string' ||
@@ -392,7 +421,7 @@ export async function handleIncomingBlob(
         return `card share: ${data.nickname}`;
       }
       case 'card-unshare': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data } = await openPeerBlob(blob, ctx);
         if (typeof data.cardId !== 'string') return null;
         await ctx.removeSharedByOwner(blob.from, data.cardId);
         await ctx.cancelRequestsForCard(blob.from, data.cardId);
@@ -407,11 +436,10 @@ export async function handleIncomingBlob(
         return 'card unshared';
       }
       case 'details-request': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data, peer } = await openPeerBlob(blob, ctx);
         if (typeof data.requestId !== 'string' || typeof data.cardId !== 'string') {
           return null;
         }
-        const peer = await ctx.getPeer(blob.from);
         if (!peer || peer.status !== 'paired') return null;
         await ctx.insertRequest({
           id: data.requestId,
@@ -425,14 +453,10 @@ export async function handleIncomingBlob(
         return `details request from ${peer.name}`;
       }
       case 'otp-request': {
-        const data = JSON.parse(await openFrom(blob.payload));
-        if (
-          typeof data.requestId !== 'string' ||
-          typeof data.cardId !== 'string'
-        ) {
+        const { data, peer } = await openPeerBlob(blob, ctx);
+        if (typeof data.requestId !== 'string' || typeof data.cardId !== 'string') {
           return null;
         }
-        const peer = await ctx.getPeer(blob.from);
         if (!peer || peer.status !== 'paired') return null;
         const amount = typeof data.amount === 'string' ? data.amount : null;
         const merchant = typeof data.merchant === 'string' ? data.merchant : null;
@@ -453,24 +477,27 @@ export async function handleIncomingBlob(
         return `otp request from ${peer.name}`;
       }
       case 'details-approve': {
-        const data = JSON.parse(await openFrom(blob.payload));
-        if (
-          typeof data.requestId !== 'string' ||
-          typeof data.cardId !== 'string'
-        ) {
+        const { data } = await openPeerBlob(blob, ctx);
+        if (typeof data.requestId !== 'string' || typeof data.cardId !== 'string') {
           return null;
         }
         const request = await ctx.getRequest(data.requestId);
-        if (!request || request.direction !== 'out' || request.status !== 'pending') {
+        if (
+          !request ||
+          request.direction !== 'out' ||
+          request.status !== 'pending' ||
+          request.peerId !== blob.from
+        ) {
           return null;
         }
         const expiresAt =
           typeof data.expiresAt === 'number'
             ? data.expiresAt
             : Date.now() + DETAILS_WINDOW_MS;
-        if (data.details && typeof data.details.pan === 'string') {
+        const details = asRecord(data.details);
+        if (details && typeof details.pan === 'string') {
           await ctx.setRequestStatus(data.requestId, 'approved', expiresAt);
-          useRevealStore.get().setDetails(data.cardId, data.details, expiresAt);
+          useRevealStore.get().setDetails(data.cardId, details as unknown as db.CardSecrets, expiresAt);
           return 'details approved';
         }
         // No details in the blob: this was a nearby (offline) share, so the
@@ -479,37 +506,42 @@ export async function handleIncomingBlob(
         // sending the details over the internet.
         const shared = await ctx.findSharedCard(blob.from, data.cardId);
         if (!shared?.sealed) return null;
-        const opened = JSON.parse(await openFrom(shared.sealed)) as {
-          cardId?: unknown;
-          secrets?: unknown;
-        };
+        const sealed = await openEnvelope(shared.sealed);
+        if (shared.ownerPub && !samePub(shared.ownerPub, sealed.senderPub)) return null;
+        const opened = asRecord(JSON.parse(sealed.plaintext));
+        const secrets = opened ? asRecord(opened.secrets) : null;
         if (
+          !opened ||
           opened.cardId !== data.cardId ||
-          !opened.secrets ||
-          typeof (opened.secrets as db.CardSecrets).pan !== 'string'
+          !secrets ||
+          typeof secrets.pan !== 'string'
         ) {
           return null;
         }
         await ctx.setRequestStatus(data.requestId, 'approved', expiresAt);
-        useRevealStore.get().setDetails(data.cardId, opened.secrets as db.CardSecrets, expiresAt);
+        useRevealStore.get().setDetails(data.cardId, secrets as unknown as db.CardSecrets, expiresAt);
         return 'details approved (offline)';
       }
       case 'details-deny': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data } = await openPeerBlob(blob, ctx);
         if (typeof data.requestId !== 'string') return null;
+        const request = await ctx.getRequest(data.requestId);
+        if (request && request.peerId !== blob.from) return null;
         await ctx.setRequestStatus(data.requestId, 'denied');
         return 'details denied';
       }
       case 'otp-approve': {
-        const data = JSON.parse(await openFrom(blob.payload));
-        if (
-          typeof data.requestId !== 'string' ||
-          typeof data.otp !== 'string'
-        ) {
+        const { data } = await openPeerBlob(blob, ctx);
+        if (typeof data.requestId !== 'string' || typeof data.otp !== 'string') {
           return null;
         }
         const request = await ctx.getRequest(data.requestId);
-        if (!request || request.direction !== 'out' || request.status !== 'pending') {
+        if (
+          !request ||
+          request.direction !== 'out' ||
+          request.status !== 'pending' ||
+          request.peerId !== blob.from
+        ) {
           return null;
         }
         const expiresAt =
@@ -521,19 +553,23 @@ export async function handleIncomingBlob(
         return 'otp approved';
       }
       case 'otp-deny': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data } = await openPeerBlob(blob, ctx);
         if (typeof data.requestId !== 'string') return null;
+        const request = await ctx.getRequest(data.requestId);
+        if (request && request.peerId !== blob.from) return null;
         await ctx.setRequestStatus(data.requestId, 'denied');
         return 'otp denied';
       }
       case 'request-cancel': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data } = await openPeerBlob(blob, ctx);
         if (typeof data.requestId !== 'string') return null;
+        const request = await ctx.getRequest(data.requestId);
+        if (request && request.peerId !== blob.from) return null;
         await ctx.setRequestStatus(data.requestId, 'cancelled');
         return 'request cancelled';
       }
       case 'request-revoke': {
-        const data = JSON.parse(await openFrom(blob.payload));
+        const { data } = await openPeerBlob(blob, ctx);
         if (typeof data.requestId !== 'string') return null;
         const request = await ctx.getRequest(data.requestId);
         if (

@@ -1009,6 +1009,40 @@ html.is-standalone .modal {
   margin: 12px 0;
 }
 
+.fingerprint-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  text-align: center;
+  margin: 12px 0;
+}
+
+.fingerprint-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.fingerprint {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-strong);
+  margin-top: 4px;
+}
+
+.fingerprint-inline {
+  margin-top: 8px;
+}
+
+.fingerprint-inline .fingerprint {
+  font-size: 15px;
+  letter-spacing: 0.16em;
+}
+
 .code-input {
   font-size: 22px;
   letter-spacing: 6px;

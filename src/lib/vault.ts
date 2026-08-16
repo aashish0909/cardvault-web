@@ -37,6 +37,43 @@ const KV_PRF_INPUT = 'vault.prf-input';
 const KV_PASSKEY_ID = 'vault.passkey-id';
 const KV_IDENTITY = 'identity.v1';
 
+export const MIN_PASSPHRASE_LENGTH = 12;
+
+/** User-facing reason the passphrase is too weak, or null if it is acceptable. */
+export function passphraseIssue(passphrase: string): string | null {
+  if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
+    return `Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters.`;
+  }
+  if (/^\s+$/.test(passphrase)) {
+    return 'Passphrase cannot be only whitespace.';
+  }
+  if (/^[0-9]+$/.test(passphrase)) {
+    return 'Passphrase cannot be only digits.';
+  }
+  return null;
+}
+
+let unlockFails = 0;
+let unlockLockedUntil = 0;
+
+/** Milliseconds remaining before another passphrase attempt is allowed. */
+export function unlockBackoffMs(): number {
+  return Math.max(0, unlockLockedUntil - Date.now());
+}
+
+function recordUnlockFailure(): void {
+  unlockFails += 1;
+  if (unlockFails >= 3) {
+    const delay = Math.min(30_000, 1000 * 2 ** (unlockFails - 3));
+    unlockLockedUntil = Date.now() + delay;
+  }
+}
+
+function clearUnlockFailures(): void {
+  unlockFails = 0;
+  unlockLockedUntil = 0;
+}
+
 interface Session {
   key: CryptoKey;
   identity: Identity;
@@ -74,6 +111,8 @@ export async function setupVault(options: {
   displayName: string;
   passkey: PasskeyEnrollment | null;
 }): Promise<void> {
+  const weak = passphraseIssue(options.passphrase);
+  if (weak) throw new Error(weak);
   const key = await generateMasterKey();
   const salt = randomBytes(16);
   const wrapKey = await derivePassphraseWrapKey(options.passphrase, salt);
@@ -155,6 +194,7 @@ export async function unlockWithPasskey(): Promise<string | null> {
 
 /** Passphrase unlock (PBKDF2). Also the recovery path when passkeys break. */
 export async function unlockWithPassphrase(passphrase: string): Promise<boolean> {
+  if (unlockBackoffMs() > 0) return false;
   const saltB64 = await kvGet(KV_SALT);
   const wrapped = await kvGet(KV_WRAPPED);
   if (!saltB64 || !wrapped) return false;
@@ -162,8 +202,10 @@ export async function unlockWithPassphrase(passphrase: string): Promise<boolean>
     const wrapKey = await derivePassphraseWrapKey(passphrase, base64ToBytes(saltB64));
     const key = await unwrapMasterKey(wrapped, wrapKey);
     await openSession(key);
+    clearUnlockFailures();
     return true;
   } catch {
+    recordUnlockFailure();
     return false;
   }
 }

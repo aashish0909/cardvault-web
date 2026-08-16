@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-import { passkeyEnabled, unlockWithPassphrase, unlockWithPasskey } from '../lib/vault';
+import {
+  passkeyEnabled,
+  unlockBackoffMs,
+  unlockWithPassphrase,
+  unlockWithPasskey,
+} from '../lib/vault';
 
 export default function Unlock({ onUnlocked }: { onUnlocked: () => void }) {
   const [passkey, setPasskey] = useState(false);
@@ -10,6 +15,7 @@ export default function Unlock({ onUnlocked }: { onUnlocked: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [triedPasskey, setTriedPasskey] = useState(false);
+  const [waitMs, setWaitMs] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,6 +26,12 @@ export default function Unlock({ onUnlocked }: { onUnlocked: () => void }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (waitMs <= 0) return;
+    const t = window.setInterval(() => setWaitMs(unlockBackoffMs()), 250);
+    return () => window.clearInterval(t);
+  }, [waitMs]);
 
   const unlockBiometric = async () => {
     setBusy(true);
@@ -36,15 +48,27 @@ export default function Unlock({ onUnlocked }: { onUnlocked: () => void }) {
 
   const unlockPass = async (e: React.FormEvent) => {
     e.preventDefault();
+    const remaining = unlockBackoffMs();
+    if (remaining > 0) {
+      setWaitMs(remaining);
+      setError(`Too many attempts. Try again in ${Math.ceil(remaining / 1000)}s.`);
+      return;
+    }
     setBusy(true);
     setError(null);
     const ok = await unlockWithPassphrase(pass);
     setBusy(false);
     if (ok) {
       onUnlocked();
-    } else {
-      setError('Wrong passphrase.');
+      return;
     }
+    const nextWait = unlockBackoffMs();
+    setWaitMs(nextWait);
+    setError(
+      nextWait > 0
+        ? `Wrong passphrase. Try again in ${Math.ceil(nextWait / 1000)}s.`
+        : 'Wrong passphrase.'
+    );
   };
 
   return (
@@ -77,8 +101,12 @@ export default function Unlock({ onUnlocked }: { onUnlocked: () => void }) {
               />
             </div>
             {error && <p className="error">{error}</p>}
-            <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
-              Unlock
+            <button
+              className="btn btn-primary btn-block"
+              type="submit"
+              disabled={busy || waitMs > 0}
+            >
+              {waitMs > 0 ? `Wait ${Math.ceil(waitMs / 1000)}s` : 'Unlock'}
             </button>
           </form>
         )}

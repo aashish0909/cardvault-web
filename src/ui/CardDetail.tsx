@@ -6,12 +6,9 @@ import { formatPan } from '../lib/cards';
 import { decryptJSON } from '../lib/crypto';
 import * as db from '../lib/db';
 import { unshareCard } from '../lib/relay';
-import { getSessionKey, getIdentity } from '../lib/vault';
+import { getSessionKey } from '../lib/vault';
+import { copySecret } from '../lib/clipboard';
 import { Modal } from './common';
-
-function copy(text: string) {
-  void navigator.clipboard?.writeText(text).catch(() => {});
-}
 
 export default function CardDetail({
   cardId,
@@ -73,7 +70,7 @@ export default function CardDetail({
               {formatPan(secrets.pan)}
             </div>
             <div className="row section-gap">
-              <button className="btn" onClick={() => copy(formatPan(secrets.pan))}>
+              <button className="btn" onClick={() => copySecret(formatPan(secrets.pan))}>
                 Copy
               </button>
             </div>
@@ -84,7 +81,7 @@ export default function CardDetail({
               {secrets.expiry} / {secrets.cvv}
             </div>
             <div className="row section-gap">
-              <button className="btn" onClick={() => copy(`${secrets.expiry} ${secrets.cvv}`)}>
+              <button className="btn" onClick={() => copySecret(`${secrets.expiry} ${secrets.cvv}`)}>
                 Copy
               </button>
             </div>

@@ -8,7 +8,7 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Resource-Policy = "same-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Content-Security-Policy = "frame-ancestors 'none'; frame-src 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; font-src 'self'; frame-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
 
 [[headers]]
   for = "/sw.js"

@@ -6,6 +6,7 @@
 import nacl from 'tweetnacl';
 
 import { bytesToHex } from './bytes';
+import { sha256Hex } from './crypto';
 
 // tweetnacl needs a CSPRNG; browsers expose crypto.getRandomValues.
 nacl.setPRNG((x: Uint8Array) => {
@@ -38,4 +39,14 @@ export function pairingPayload(identity: Identity): string {
     name: identity.name,
     pub: identity.pubHex,
   });
+}
+
+/**
+ * Short visual fingerprint of an X25519 public key. Same algorithm as the
+ * native app (`SHA-256(pubHex)` → first 8 hex chars) so mixed web/native
+ * pairing can compare numbers out of band and catch a relay swapping keys.
+ */
+export async function pairingFingerprint(pubHex: string): Promise<string> {
+  const digest = await sha256Hex(pubHex);
+  return digest.slice(0, 8).toUpperCase();
 }

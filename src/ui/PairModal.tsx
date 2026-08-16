@@ -20,7 +20,7 @@ import {
   parseNearbyShare,
   type NearbySharePayload,
 } from '../lib/nearby';
-import { pairingPayload, type Identity } from '../lib/identity';
+import { pairingFingerprint, pairingPayload, type Identity } from '../lib/identity';
 import { getIdentity } from '../lib/vault';
 import * as db from '../lib/db';
 import { sendBlob } from '../lib/relay';
@@ -36,6 +36,10 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [share, setShare] = useState<NearbySharePayload | null>(null);
   const [accepted, setAccepted] = useState(false);
+  const [pendingPair, setPendingPair] = useState<{
+    payload: PairPayload;
+    fingerprint: string;
+  } | null>(null);
 
   const acceptPayload = async (payload: unknown) => {
     // Detect a nearby card-share QR (from the owner's "Share nearby") and
@@ -67,7 +71,8 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
       p.v !== 1 ||
       typeof p.deviceId !== 'string' ||
       typeof p.name !== 'string' ||
-      typeof p.pub !== 'string'
+      typeof p.pub !== 'string' ||
+      !/^[0-9a-f]{64}$/i.test(p.pub)
     ) {
       setError('That QR / code is not a valid pairing payload.');
       return;
@@ -76,10 +81,20 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
       setError('That is your own code.');
       return;
     }
+    setError(null);
+    setPendingPair({
+      payload: p as PairPayload,
+      fingerprint: await pairingFingerprint(p.pub),
+    });
+  };
+
+  const confirmPair = async () => {
+    if (!pendingPair) return;
     setBusy(true);
     setError(null);
     try {
       const me = await getIdentity();
+      const p = pendingPair.payload;
       await db.upsertPeer({
         id: p.deviceId,
         name: p.name,
@@ -115,7 +130,31 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="Pair with a friend" onClose={onClose} closeRef={closeRef}>
-      {share ? (
+      {pendingPair ? (
+        <>
+          <p className="muted">
+            Compare this fingerprint with the number on {pendingPair.payload.name}'s
+            screen before sending the request. If they differ, someone may be
+            intercepting the pairing.
+          </p>
+          <FingerprintBox value={pendingPair.fingerprint} />
+          {error && <p className="error">{error}</p>}
+          <div className="row section-gap">
+            <button
+              className="btn"
+              onClick={() => {
+                setPendingPair(null);
+                setError(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={() => void confirmPair()} disabled={busy}>
+              Fingerprints match
+            </button>
+          </div>
+        </>
+      ) : share ? (
         <>
           <p className="muted">Shared by {share.fromName} - still encrypted and masked.</p>
           <CardFace
@@ -185,6 +224,15 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function FingerprintBox({ value }: { value: string }) {
+  return (
+    <div className="fingerprint-box">
+      <div className="fingerprint-label">Key fingerprint</div>
+      <div className="fingerprint mono">{value}</div>
+    </div>
+  );
+}
+
 async function acceptCode(
   code: string,
   accept: (payload: unknown) => Promise<void>
@@ -236,6 +284,7 @@ function MyQr() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [qrData, setQrData] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = (id: Identity) => {
@@ -250,6 +299,7 @@ function MyQr() {
         const id = await getIdentity();
         setIdentity(id);
         refresh(id);
+        void pairingFingerprint(id.pubHex).then(setFingerprint);
         void createPairingCode()
           .then(setCode)
           .catch((e) => setError((e as Error).message));
@@ -280,6 +330,11 @@ function MyQr() {
           <img src={qrData} alt="Pairing QR" />
         </div>
       )}
+      {fingerprint && <FingerprintBox value={fingerprint} />}
+      <p className="muted">
+        Tell your friend this fingerprint. They must see the same number before
+        they send a pairing request.
+      </p>
       {code && <div className="code-display mono">{formatPairingCode(code)}</div>}
       {error && <p className="error">{error}</p>}
       <button type="button" className="btn" onClick={newCode}>
