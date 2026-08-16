@@ -84,115 +84,64 @@ export default function RequestsTab() {
           <p>No requests.</p>
         </div>
       ) : (
-        requests.map((r) => {
-          const card = cardFor(r.cardId);
-          return (
-            <div className="list-item req-card" key={r.id}>
-              <div className="req-top">
-                <span className="req-kind">{r.kind === 'details' ? 'Card details' : 'OTP'}</span>
-                <span className={`badge ${r.status}`}>{r.status}</span>
-              </div>
-
-              <div className="req-headline">
-                {r.direction === 'in'
-                  ? r.kind === 'details'
-                    ? `${peersName(r.peerId)} wants your card details`
-                    : `${peersName(r.peerId)} requests an OTP`
-                  : r.kind === 'details'
-                    ? 'You asked for card details'
-                    : 'You requested an OTP'}
-              </div>
-
-              {card && (
-                <div
-                  className="req-card-ref"
-                  style={{
-                    background: `color-mix(in srgb, ${card.color}, transparent 82%)`,
-                    borderColor: `color-mix(in srgb, ${card.color}, transparent 55%)`,
-                  }}
-                >
-                  <CardLogo network={card.network} width={30} />
-                  <span className="req-card-nick">{card.nickname}</span>
-                  <span className="req-card-last4">{maskedPan(card.last4)}</span>
-                </div>
-              )}
-
-              {r.kind === 'otp' && r.amount && (
-                <div className="req-amount">
-                  <span className="req-amount-value">₹{r.amount}</span>
-                  {r.merchant ? <span className="req-amount-merchant">at {r.merchant}</span> : null}
-                </div>
-              )}
-
-              {r.status === 'approved' && r.windowExpiresAt != null && (
-                <div className={`req-window ${r.windowExpiresAt > Date.now() ? 'open' : 'closed'}`}>
-                  {r.windowExpiresAt > Date.now() ? (
-                    <>
-                      {r.kind === 'details' ? 'Details visible for' : 'OTP visible for'}{' '}
-                      <Countdown expiresAt={r.windowExpiresAt} />
-                    </>
-                  ) : (
-                    'Reveal window closed'
-                  )}
-                </div>
-              )}
-
-              <div className="row" style={{ marginTop: 10 }}>
-                {r.direction === 'in' && r.status === 'pending' && r.kind === 'details' && (
-                  <>
-                    <button className="btn btn-primary" onClick={() => setApproveId(r.id)}>
-                      Approve
-                    </button>
-                    <button className="btn btn-danger" onClick={() => void denyRequest(r).then(reload)}>
-                      Deny
-                    </button>
-                  </>
-                )}
-                {r.direction === 'in' && r.status === 'pending' && r.kind === 'otp' && (
-                  <>
-                    <button className="btn btn-primary" onClick={() => setOtpForId(r.id)}>
-                      Enter OTP
-                    </button>
-                    <button className="btn btn-danger" onClick={() => void denyRequest(r).then(reload)}>
-                      Deny
-                    </button>
-                  </>
-                )}
-                {r.direction === 'out' && r.status === 'pending' && (
-                  <button className="btn btn-danger" onClick={() => void cancelRequest(r).then(reload)}>
-                    Cancel
-                  </button>
-                )}
-                {r.status === 'approved' && r.windowExpiresAt != null && r.windowExpiresAt > Date.now() && (
-                  <button className="btn btn-danger" onClick={() => void revokeRequest(r).then(reload)}>
-                    Revoke
-                  </button>
-                )}
-              </div>
-
-              {r.direction === 'out' && r.status === 'approved' && r.kind === 'otp' && (
-                <OtpStatus requestId={r.id} />
-              )}
+        <>
+          {requests.some((r) => r.status === 'pending') ? (
+            requests
+              .filter((r) => r.status === 'pending')
+              .map((r) => (
+                <RequestCard
+                  key={r.id}
+                  r={r}
+                  card={cardFor(r.cardId)}
+                  peersName={peersName}
+                  onApproveDetails={() => setApproveId(r.id)}
+                  onApproveOtp={() => setOtpForId(r.id)}
+                  onDeny={() => void denyRequest(r).then(reload)}
+                  onCancel={() => void cancelRequest(r).then(reload)}
+                  onRevoke={() => void revokeRequest(r).then(reload)}
+                />
+              ))
+          ) : (
+            <div className="empty">
+              <p>No open requests.</p>
             </div>
-          );
-        })
+          )}
+          {requests.some((r) => r.status !== 'pending') && (
+            <>
+              <h2 className="req-history-title">History</h2>
+              {requests
+                .filter((r) => r.status !== 'pending')
+                .map((r) => (
+                  <RequestCard
+                    key={r.id}
+                    r={r}
+                    card={cardFor(r.cardId)}
+                    peersName={peersName}
+                    onApproveDetails={() => setApproveId(r.id)}
+                    onApproveOtp={() => setOtpForId(r.id)}
+                    onDeny={() => void denyRequest(r).then(reload)}
+                    onCancel={() => void cancelRequest(r).then(reload)}
+                    onRevoke={() => void revokeRequest(r).then(reload)}
+                  />
+                ))}
+            </>
+          )}
+        </>
       )}
 
       {approveId && (
         <WindowPicker
           request={requests?.find((r) => r.id === approveId)!}
-          onPick={(ms) => {
-            void (async () => {
-              const req = requests?.find((r) => r.id === approveId);
-              if (!req) return;
-              const key = await getSessionKey();
-              const card = await db.getCard(req.cardId);
-              if (!card) return;
-              const secrets = await decryptJSON<db.CardSecrets>(key, card.payload);
-              await approveDetails(req, secrets, ms);
-              setApproveId(null);
-              await reload();
-            })();
+          onPick={async (ms) => {
+            const req = requests?.find((r) => r.id === approveId);
+            if (!req) throw new Error('Request is no longer available.');
+            const key = await getSessionKey();
+            const card = await db.getCard(req.cardId);
+            if (!card) throw new Error('Card not found on this device.');
+            const secrets = await decryptJSON<db.CardSecrets>(key, card.payload);
+            await approveDetails(req, secrets, ms);
+            setApproveId(null);
+            await reload();
           }}
           onClose={() => setApproveId(null)}
         />
@@ -214,6 +163,116 @@ export default function RequestsTab() {
   );
 }
 
+function RequestCard({
+  r,
+  card,
+  peersName,
+  onApproveDetails,
+  onApproveOtp,
+  onDeny,
+  onCancel,
+  onRevoke,
+}: {
+  r: db.RequestRow;
+  card: db.CardRow | undefined;
+  peersName: (id: string) => string;
+  onApproveDetails: () => void;
+  onApproveOtp: () => void;
+  onDeny: () => void;
+  onCancel: () => void;
+  onRevoke: () => void;
+}) {
+  return (
+    <div className="list-item req-card">
+      <div className="req-top">
+        <span className="req-kind">{r.kind === 'details' ? 'Card details' : 'OTP'}</span>
+        <span className={`badge ${r.status}`}>{r.status}</span>
+      </div>
+
+      <div className="req-headline">
+        {r.direction === 'in'
+          ? r.kind === 'details'
+            ? `${peersName(r.peerId)} wants your card details`
+            : `${peersName(r.peerId)} requests an OTP`
+          : r.kind === 'details'
+            ? 'You asked for card details'
+            : 'You requested an OTP'}
+      </div>
+
+      {card && (
+        <div
+          className="req-card-ref"
+          style={{
+            background: `color-mix(in srgb, ${card.color}, transparent 82%)`,
+            borderColor: `color-mix(in srgb, ${card.color}, transparent 55%)`,
+          }}
+        >
+          <CardLogo network={card.network} width={30} />
+          <span className="req-card-nick">{card.nickname}</span>
+          <span className="req-card-last4">{maskedPan(card.last4)}</span>
+        </div>
+      )}
+
+      {r.kind === 'otp' && r.amount && (
+        <div className="req-amount">
+          <span className="req-amount-value">₹{r.amount}</span>
+          {r.merchant ? <span className="req-amount-merchant">at {r.merchant}</span> : null}
+        </div>
+      )}
+
+      {r.status === 'approved' && r.windowExpiresAt != null && (
+        <div className={`req-window ${r.windowExpiresAt > Date.now() ? 'open' : 'closed'}`}>
+          {r.windowExpiresAt > Date.now() ? (
+            <>
+              {r.kind === 'details' ? 'Details visible for' : 'OTP visible for'}{' '}
+              <Countdown expiresAt={r.windowExpiresAt} />
+            </>
+          ) : (
+            'Reveal window closed'
+          )}
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 10 }}>
+        {r.direction === 'in' && r.status === 'pending' && r.kind === 'details' && (
+          <>
+            <button className="btn btn-primary" onClick={onApproveDetails}>
+              Approve
+            </button>
+            <button className="btn btn-danger" onClick={onDeny}>
+              Deny
+            </button>
+          </>
+        )}
+        {r.direction === 'in' && r.status === 'pending' && r.kind === 'otp' && (
+          <>
+            <button className="btn btn-primary" onClick={onApproveOtp}>
+              Enter OTP
+            </button>
+            <button className="btn btn-danger" onClick={onDeny}>
+              Deny
+            </button>
+          </>
+        )}
+        {r.direction === 'out' && r.status === 'pending' && (
+          <button className="btn btn-danger" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+        {r.status === 'approved' && r.windowExpiresAt != null && r.windowExpiresAt > Date.now() && (
+          <button className="btn btn-danger" onClick={onRevoke}>
+            Revoke
+          </button>
+        )}
+      </div>
+
+      {r.direction === 'out' && r.status === 'approved' && r.kind === 'otp' && (
+        <OtpStatus requestId={r.id} />
+      )}
+    </div>
+  );
+}
+
 function OtpStatus({ requestId }: { requestId: string }) {
   const reveal = useReveal();
   const entry = reveal.otp[requestId];
@@ -228,14 +287,15 @@ function OtpStatus({ requestId }: { requestId: string }) {
 }
 
 function WindowPicker({
-  request,
   onPick,
   onClose,
 }: {
   request: db.RequestRow;
-  onPick: (ms: number) => void;
+  onPick: (ms: number) => Promise<void>;
   onClose: () => void;
 }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
     <Modal title="Reveal window" onClose={onClose}>
       <p className="muted">
@@ -244,11 +304,24 @@ function WindowPicker({
       </p>
       <div className="row section-gap">
         {WINDOW_OPTIONS_MS.map((o) => (
-          <button key={o.ms} className="btn btn-primary" onClick={() => onPick(o.ms)}>
+          <button
+            key={o.ms}
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              void onPick(o.ms).catch((err) => {
+                setError((err as Error).message);
+                setBusy(false);
+              });
+            }}
+          >
             {o.label}
           </button>
         ))}
       </div>
+      {error && <p className="error">{error}</p>}
     </Modal>
   );
 }

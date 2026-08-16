@@ -62,7 +62,7 @@ export default function ShareCardModal({
             last4: card.last4,
             color: card.color,
           });
-          await db.addShare(card.id, peer.id, { name: peer.name, publicKey: peer.publicKey });
+          await db.addShare(card.id, peer.id, { name: peer.name });
         }
       }
       const allShares = await Promise.all(cardIds.map((id) => db.listShares(id)));

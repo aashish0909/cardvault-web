@@ -89,7 +89,7 @@ export default function NearbyShareModal({
       // "Shared with" and can be revoked via a best-effort relay message.
       const existing = await db.listShares(cardId);
       if (!existing.some((s) => s.peerId === p.deviceId)) {
-        await db.addShare(cardId, p.deviceId, { name: p.name, publicKey: p.pub });
+        await db.addShare(cardId, p.deviceId, { name: p.name, publicKey: p.pub, nearby: true });
       }
       // Treat the recipient as a paired friend so the consent flow (details
       // / OTP requests) can ride the relay later. The card details

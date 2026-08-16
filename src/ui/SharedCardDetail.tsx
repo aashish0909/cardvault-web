@@ -6,15 +6,17 @@
 // simply opens the window and the details are decrypted locally, so the card
 // details never travel over the internet.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import * as db from '../lib/db';
 import {
   requestDetails,
   requestOtp,
   revokeRequest,
+  useInboxStore,
 } from '../lib/relay';
 import { useReveal } from '../lib/reveal';
+import { useStore } from '../lib/store';
 import { Modal, DetailsReveal, OtpReveal } from './common';
 
 export default function SharedCardDetail({
@@ -32,28 +34,33 @@ export default function SharedCardDetail({
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const reveal = useReveal();
+  const inbox = useStore(useInboxStore);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     const s = await db.getSharedCard(sharedId);
     if (!s) return;
     setShared(s);
     const peer = await db.getPeer(s.peerId);
     if (peer) setOwnerName(peer.name);
     setRequests(await db.listRequests());
-  };
+  }, [sharedId]);
 
   useEffect(() => {
     void reload();
     const t = setInterval(() => void reload(), 2000);
     return () => clearInterval(t);
-  }, [sharedId]);
+  }, [reload, inbox.eventId]);
 
   if (!shared) return null;
 
   const isNearby = shared.sealed != null;
-  const detailsReq = requests.find(
+  const detailsReqs = requests.filter(
     (r) => r.kind === 'details' && r.cardId === shared.ownerCardId && r.direction === 'out'
   );
+  const detailsReq =
+    detailsReqs.find((r) => r.status === 'pending') ??
+    detailsReqs.find((r) => r.status === 'approved') ??
+    detailsReqs[0];
   const otpReqs = requests.filter(
     (r) => r.kind === 'otp' && r.cardId === shared.ownerCardId && r.direction === 'out'
   );

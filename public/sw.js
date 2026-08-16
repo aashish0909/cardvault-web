@@ -8,7 +8,7 @@
 // traffic never touches this worker (it goes straight to the relay origin,
 // not through here).
 
-const CACHE = 'cardvault-v4';
+const CACHE = 'cardvault-v5';
 const PRECACHE =
   typeof __PRECACHE_ASSETS__ !== 'undefined' ? __PRECACHE_ASSETS__ : [];
 
