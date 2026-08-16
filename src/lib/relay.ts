@@ -10,6 +10,7 @@ import { openEnvelope, sealTo } from './e2e';
 import { getIdentity } from './vault';
 import type { Identity } from './identity';
 import { notify } from './notify';
+import { currentPushSubscription } from './push';
 import { signRequest, signingPublicKeyHex } from './reqsig';
 import { useRevealStore, DETAILS_WINDOW_MS, OTP_WINDOW_MS } from './reveal';
 import * as db from './db';
@@ -82,11 +83,13 @@ const defaultCtx: IncomingCtx = {
 export async function registerDevice(): Promise<void> {
   try {
     const identity = await getIdentity();
+    const pushSubscription = await currentPushSubscription();
     const body = JSON.stringify({
       deviceId: identity.deviceId,
       pushToken: '',
       platform: 'web',
       signPub: await signingPublicKeyHex(identity),
+      ...(pushSubscription ? { pushSubscription } : {}),
     });
     const signed = await signRequest(identity, 'POST', '/v1/devices', body);
     await fetch(`${getRelayUrl()}/v1/devices`, {
@@ -137,6 +140,13 @@ async function blobIdFrom(res: Response): Promise<string> {
   }
 }
 
+function depositError(status: number): Error {
+  if (status === 404) {
+    return new Error('The other device is offline. Open CardVault there and try again.');
+  }
+  return new Error(`Relay deposit failed: ${status}`);
+}
+
 /** Signed POST /v1/blobs with one register-and-retry on 401. */
 async function depositBlob(
   identity: Identity,
@@ -165,10 +175,10 @@ async function depositBlob(
       headers: { 'content-type': 'application/json', ...retry.headers },
       body: retry.body,
     });
-    if (!res2.ok) throw new Error(`Relay deposit failed: ${res2.status}`);
+    if (!res2.ok) throw depositError(res2.status);
     return blobIdFrom(res2);
   }
-  if (!res.ok) throw new Error(`Relay deposit failed: ${res.status}`);
+  if (!res.ok) throw depositError(res.status);
   return blobIdFrom(res);
 }
 
@@ -334,10 +344,7 @@ export async function requestOtp(
   });
 }
 
-/** Owner approves a details request: opens the reveal window. For a nearby
- *  (offline) share the full details already sit sealed on the recipient, so
- *  the approval blob carries no secrets - card details never cross the
- *  internet. Relay shares receive them as before. */
+/** Owner approves a details request: sends the unlock package + opens the window. */
 export async function approveDetails(
   request: db.RequestRow,
   secrets: db.CardSecrets,
@@ -345,11 +352,10 @@ export async function approveDetails(
   ctx: Pick<IncomingCtx, 'setRequestStatus' | 'hasNearbyShare'> = defaultCtx
 ): Promise<void> {
   const expiresAt = Date.now() + windowMs;
-  const nearby = await ctx.hasNearbyShare(request.cardId, request.peerId);
   await sendBlob(request.peerId, 'details-approve', {
     requestId: request.id,
     cardId: request.cardId,
-    ...(nearby ? {} : { details: secrets }),
+    details: secrets,
     expiresAt,
   });
   await ctx.setRequestStatus(request.id, 'approved', expiresAt);

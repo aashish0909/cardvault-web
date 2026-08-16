@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import type { Identity } from '../lib/identity';
 import { useAppInstall } from '../lib/install';
-import { pushPermission, setupPush } from '../lib/push';
+import { pushPermission, requestPush } from '../lib/push';
 import { passkeySupportIssue } from '../lib/webauthn';
 import { sendNameUpdate } from '../lib/relay';
 import {
@@ -61,7 +61,7 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
   };
 
   const enableNotifications = async () => {
-    const enabled = await setupPush();
+    const enabled = await requestPush();
     setNotificationPermission(pushPermission());
     setNote(enabled ? 'Notifications enabled.' : 'Notifications could not be enabled.');
   };
@@ -102,7 +102,9 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
       {notificationPermission === 'unsupported' ? (
         <p className="muted">Push notifications are not supported in this browser.</p>
       ) : notificationPermission === 'denied' ? (
-        <p className="muted">Notifications are blocked. Allow them in browser settings.</p>
+        <p className="muted">Notifications are blocked. Allow them in Settings → Notifications → CardVault.</p>
+      ) : notificationPermission === 'granted' ? (
+        <p className="muted">Alerts are on. You will be pinged even when CardVault is closed.</p>
       ) : (
         <button className="btn" onClick={() => void enableNotifications()}>
           Enable notifications

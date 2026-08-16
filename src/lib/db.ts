@@ -307,10 +307,29 @@ function normalizeSharedCard(r: SharedCardRow): SharedCardRow {
 
 export async function listSharedCards(): Promise<SharedCardRow[]> {
   const rows = await tx<SharedCardRow[]>('shared_cards', 'readonly', (s) => s.getAll());
-  return rows
+  const visible = rows
     .filter((r) => r.status !== 'removed')
     .map(normalizeSharedCard)
     .sort((a, b) => b.createdAt - a.createdAt);
+  const seen = new Set<string>();
+  const unique: SharedCardRow[] = [];
+  const extras: SharedCardRow[] = [];
+  for (const r of visible) {
+    const key = `${r.peerId}:${r.ownerCardId}`;
+    if (seen.has(key)) extras.push(r);
+    else {
+      seen.add(key);
+      unique.push(r);
+    }
+  }
+  if (extras.length > 0) {
+    void Promise.all(
+      extras.map((r) =>
+        tx('shared_cards', 'readwrite', (s) => s.put({ ...r, status: 'removed' as const }))
+      )
+    );
+  }
+  return unique;
 }
 
 export async function getSharedCard(id: string): Promise<SharedCardRow | null> {
@@ -340,20 +359,40 @@ export async function insertSharedCard(
     ownerPub?: string | null;
   }
 ): Promise<void> {
-  const rows = await tx<SharedCardRow[]>('shared_cards', 'readonly', (s) => s.getAll());
-  const existing = rows
-    .filter((r) => r.peerId === shared.peerId && r.ownerCardId === shared.ownerCardId)
-    .sort((a, b) => b.createdAt - a.createdAt)[0];
-  const label = shared.label !== undefined ? shared.label : (existing?.label ?? null);
-  const row: SharedCardRow = {
-    ...shared,
-    id: crypto.randomUUID(),
-    label,
-    sealed: shared.sealed ?? null,
-    ownerPub: shared.ownerPub ?? null,
-    createdAt: Date.now(),
-  };
-  await tx('shared_cards', 'readwrite', (s) => s.put(normalizeSharedCard(row)));
+  const dbh = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const t = dbh.transaction('shared_cards', 'readwrite');
+    const store = t.objectStore('shared_cards');
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const matches = (req.result as SharedCardRow[]).filter(
+        (r) => r.peerId === shared.peerId && r.ownerCardId === shared.ownerCardId
+      );
+      const active = matches
+        .filter((r) => r.status !== 'removed')
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const keep =
+        active[0] ?? matches.sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
+      const label = shared.label !== undefined ? shared.label : (keep?.label ?? null);
+      const row = normalizeSharedCard({
+        ...shared,
+        id: keep?.id ?? crypto.randomUUID(),
+        label,
+        sealed: shared.sealed ?? keep?.sealed ?? null,
+        ownerPub: shared.ownerPub ?? keep?.ownerPub ?? null,
+        createdAt: keep?.createdAt ?? Date.now(),
+      });
+      store.put(row);
+      for (const extra of matches) {
+        if (extra.id !== row.id) {
+          store.put({ ...normalizeSharedCard(extra), status: 'removed' });
+        }
+      }
+    };
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
 }
 
 export async function setSharedCardLabel(id: string, label: string | null): Promise<void> {

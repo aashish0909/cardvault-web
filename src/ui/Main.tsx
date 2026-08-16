@@ -9,6 +9,7 @@ import SharedTab from './SharedTab';
 import FriendsTab from './FriendsTab';
 import RequestsTab from './RequestsTab';
 import ProfileTab from './ProfileTab';
+import PushPrompt from './PushPrompt';
 import AddCardModal from './AddCardModal';
 import CardDetail from './CardDetail';
 import ShareCardModal from './ShareCardModal';
@@ -49,6 +50,7 @@ export default function Main({ onLocked }: { onLocked: () => void }) {
 
   return (
     <>
+      <PushPrompt />
       <div key={tab} className={`tab-content tab-${direction}`}>
         {tab === 'vault' && (
           <VaultTab

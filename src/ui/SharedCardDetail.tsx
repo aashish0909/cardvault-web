@@ -39,10 +39,32 @@ export default function SharedCardDetail({
   const reload = useCallback(async () => {
     const s = await db.getSharedCard(sharedId);
     if (!s) return;
-    setShared(s);
+    setShared((prev) =>
+      prev &&
+      prev.id === s.id &&
+      prev.status === s.status &&
+      prev.label === s.label &&
+      prev.nickname === s.nickname
+        ? prev
+        : s
+    );
     const peer = await db.getPeer(s.peerId);
-    if (peer) setOwnerName(peer.name);
-    setRequests(await db.listRequests());
+    if (peer) setOwnerName((n) => (n === peer.name ? n : peer.name));
+    const rows = await db.listRequests();
+    setRequests((prev) => {
+      if (
+        prev.length === rows.length &&
+        prev.every(
+          (r, i) =>
+            r.id === rows[i]?.id &&
+            r.status === rows[i]?.status &&
+            r.windowExpiresAt === rows[i]?.windowExpiresAt
+        )
+      ) {
+        return prev;
+      }
+      return rows;
+    });
   }, [sharedId]);
 
   useEffect(() => {
@@ -136,12 +158,15 @@ export default function SharedCardDetail({
       {detailsReq?.status === 'pending' && (
         <p className="muted">Details request sent - waiting for {ownerName}…</p>
       )}
-      {!hasDetails && detailsReq && detailsReq.status !== 'pending' && (
+      {!hasDetails && detailsReq && detailsReq.status === 'approved' && (
         <p className="muted">
-          {detailsReq.status === 'approved'
-            ? 'Details window ended.'
-            : `Details request ${detailsReq.status}.`}
+          {detailsReq.windowExpiresAt != null && detailsReq.windowExpiresAt > Date.now()
+            ? 'Approved — if details are not visible, request again.'
+            : 'Details window ended.'}
         </p>
+      )}
+      {!hasDetails && detailsReq && detailsReq.status !== 'pending' && detailsReq.status !== 'approved' && (
+        <p className="muted">{`Details request ${detailsReq.status}.`}</p>
       )}
 
       {hasDetails && (
