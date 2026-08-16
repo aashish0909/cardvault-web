@@ -406,10 +406,27 @@ input.mono {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow-y: auto;
   padding: calc(24px + env(safe-area-inset-top, 0px))
     calc(24px + env(safe-area-inset-left, 0px))
     calc(24px + env(safe-area-inset-bottom, 0px))
     calc(24px + env(safe-area-inset-right, 0px));
+}
+
+.setup-stack {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-stack .push-prompt {
+  margin: 0;
+}
+
+.setup-stack .panel {
+  max-width: none;
 }
 
 .panel {

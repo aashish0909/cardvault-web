@@ -130,7 +130,10 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
       ) : install.installed ? (
         <p className="muted">Running as an installed app.</p>
       ) : install.isIOS ? (
-        <p className="muted">To install: Share → Add to Home Screen.</p>
+        <p className="muted">
+          iOS home-screen apps cannot see this vault. Add to Home Screen before
+          creating a vault, then set up inside the app.
+        </p>
       ) : (
         <p className="muted">Installable once you open this site over HTTPS.</p>
       )}
