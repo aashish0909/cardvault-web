@@ -8,11 +8,9 @@
 // traffic never touches this worker (it goes straight to the relay origin,
 // not through here).
 
-const CACHE = 'cardvault-v6';
+const CACHE = 'cardvault-v8';
 const PRECACHE =
   typeof __PRECACHE_ASSETS__ !== 'undefined' ? __PRECACHE_ASSETS__ : [];
-
-const NOTIFICATION_TAG = 'cardvault-request';
 
 function cacheEach(cache, urls) {
   return Promise.all(
@@ -104,17 +102,22 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   let title = 'CardVault';
   let body = 'New activity - open the app to review.';
+  let kind = 'activity';
   try {
     const data = event.data ? JSON.parse(event.data.text()) : null;
     if (data && typeof data.title === 'string') title = data.title;
     if (data && typeof data.body === 'string') body = data.body;
+    if (data && typeof data.kind === 'string') kind = data.kind;
   } catch {}
+  // iOS revokes Web Push if a push event does not show a notification.
+  // Unique tags so a second request does not replace the first banner.
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: NOTIFICATION_TAG,
+      tag: `cardvault-${kind}-${Date.now()}`,
+      renotify: true,
       data: { url: '/' },
     })
   );
