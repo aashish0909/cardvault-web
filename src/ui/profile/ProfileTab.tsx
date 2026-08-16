@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from 'react';
 
-import type { Identity } from '../lib/identity';
-import { getBuildId } from '../lib/config';
-import { useAppInstall } from '../lib/install';
-import { currentPushSubscription, pushPermission, requestPush, sendTestPush } from '../lib/push';
-import { passkeySupportIssue } from '../lib/webauthn';
-import { sendNameUpdate } from '../lib/relay';
+import type { Identity } from '../../lib/identity';
+import { getBuildId } from '../../lib/config';
+import { useAppInstall } from '../../lib/install';
+import { currentPushSubscription, pushPermission, requestPush, sendTestPush } from '../../lib/push';
+import { passkeySupportIssue } from '../../lib/webauthn';
+import { sendNameUpdate } from '../../lib/relay';
 import {
   enrollPasskey,
   getIdentity,
   passkeyEnabled,
   updateIdentityName,
   wipeVault,
-} from '../lib/vault';
+} from '../../lib/vault';
 
 export default function ProfileTab({ onLock }: { onLock: () => void }) {
   const [identity, setIdentity] = useState<Identity | null>(null);

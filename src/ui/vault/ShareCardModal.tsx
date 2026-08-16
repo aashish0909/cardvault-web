@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 
-import * as db from '../lib/db';
-import { sendBlob, unshareCard } from '../lib/relay';
-import { Modal } from './common';
-import NearbyShareModal from './NearbyShareModal';
+import * as db from '../../lib/db';
+import { sendBlob, unshareCard } from '../../lib/relay';
+import { Modal } from '../components';
+import NearbyShareModal from '../nearby/NearbyShareModal';
 
 export default function ShareCardModal({
   cardIds,

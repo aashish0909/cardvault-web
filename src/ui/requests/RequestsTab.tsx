@@ -1,11 +1,11 @@
 // Requests tab: incoming approvals (owner) and outgoing status (borrower).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useStore } from '../lib/store';
+import { useStore } from '../../lib/store';
 
-import { decryptJSON } from '../lib/crypto';
-import * as db from '../lib/db';
-import { maskedPan } from '../lib/cards';
+import { decryptJSON } from '../../lib/crypto';
+import * as db from '../../lib/db';
+import { maskedPan } from '../../lib/cards';
 import {
   approveDetails,
   approveOtp,
@@ -13,11 +13,11 @@ import {
   denyRequest,
   revokeRequest,
   useInboxStore,
-} from '../lib/relay';
-import { useReveal, useRevealStore } from '../lib/reveal';
-import { getSessionKey } from '../lib/vault';
-import { Modal, Countdown, DetailsReveal } from './common';
-import { CardLogo } from './CardLogo';
+} from '../../lib/relay';
+import { useReveal, useRevealStore } from '../../lib/reveal';
+import { getSessionKey } from '../../lib/vault';
+import { Modal, Countdown, DetailsReveal } from '../components';
+import { CardLogo } from '../components/CardLogo';
 
 const WINDOW_OPTIONS_MS = [2, 5, 10, 15].map((m) => ({ label: `${m} min`, ms: m * 60 * 1000 }));
 

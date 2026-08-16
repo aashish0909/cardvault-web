@@ -11,11 +11,11 @@ import {
   isValidExpiry,
   luhnCheck,
   NETWORK_LABELS,
-} from '../lib/cards';
-import { decryptJSON, encryptJSON } from '../lib/crypto';
-import * as db from '../lib/db';
-import { getSessionKey } from '../lib/vault';
-import { Modal } from './common';
+} from '../../lib/cards';
+import { decryptJSON, encryptJSON } from '../../lib/crypto';
+import * as db from '../../lib/db';
+import { getSessionKey } from '../../lib/vault';
+import { Modal } from '../components';
 
 export default function AddCardModal({ onClose }: { onClose: () => void }) {
   const closeRef = useRef<() => void>(() => onClose());

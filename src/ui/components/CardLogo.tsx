@@ -2,8 +2,8 @@
 
 import { useId } from 'react';
 
-import type { CardNetwork } from '../lib/cards';
-import { normalizeNetwork } from '../lib/cards';
+import type { CardNetwork } from '../../lib/cards';
+import { normalizeNetwork } from '../../lib/cards';
 
 const DEFAULT_WIDTHS: Record<CardNetwork, number> = {
   visa: 46,

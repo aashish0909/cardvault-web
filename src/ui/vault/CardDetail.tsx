@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { formatPan } from '../lib/cards';
-import { decryptJSON } from '../lib/crypto';
-import * as db from '../lib/db';
-import { unshareCard } from '../lib/relay';
-import { getSessionKey } from '../lib/vault';
-import { copySecret } from '../lib/clipboard';
-import { Modal } from './common';
+import { formatPan } from '../../lib/cards';
+import { decryptJSON } from '../../lib/crypto';
+import * as db from '../../lib/db';
+import { unshareCard } from '../../lib/relay';
+import { getSessionKey } from '../../lib/vault';
+import { copySecret } from '../../lib/clipboard';
+import { Modal } from '../components';
 
 export default function CardDetail({
   cardId,

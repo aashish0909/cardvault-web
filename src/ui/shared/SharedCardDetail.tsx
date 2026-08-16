@@ -8,16 +8,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import * as db from '../lib/db';
+import * as db from '../../lib/db';
 import {
   requestDetails,
   requestOtp,
   revokeRequest,
   useInboxStore,
-} from '../lib/relay';
-import { useReveal } from '../lib/reveal';
-import { useStore } from '../lib/store';
-import { Modal, DetailsReveal, OtpReveal } from './common';
+} from '../../lib/relay';
+import { useReveal } from '../../lib/reveal';
+import { useStore } from '../../lib/store';
+import { Modal, DetailsReveal, OtpReveal } from '../components';
 
 export default function SharedCardDetail({
   sharedId,

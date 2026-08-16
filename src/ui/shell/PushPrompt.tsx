@@ -7,14 +7,14 @@
 
 import { useEffect, useState } from 'react';
 
-import { useAppInstall } from '../lib/install';
+import { useAppInstall } from '../../lib/install';
 import {
   currentPushSubscription,
   isIOS,
   isStandalonePwa,
   pushPermission,
   requestPush,
-} from '../lib/push';
+} from '../../lib/push';
 
 type Kind = 'hidden' | 'enable' | 'install' | 'blocked';
 type Phase = 'setup' | 'unlocked';

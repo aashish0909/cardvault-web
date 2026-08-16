@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Share2, X } from 'lucide-react';
 
-import * as db from '../lib/db';
-import { CardFace } from './common';
+import * as db from '../../lib/db';
+import { CardFace } from '../components';
 
 interface MenuState {
   cardId: string;

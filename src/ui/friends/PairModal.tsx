@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { qrDataUrl } from '../lib/qr';
+import { qrDataUrl } from '../../lib/qr';
 import {
   createPairingCode,
   formatPairingCode,
@@ -14,18 +14,18 @@ import {
   PAIRING_CODE_TTL_MIN,
   resolvePairingCode,
   type PairPayload,
-} from '../lib/pairing';
+} from '../../lib/pairing';
 import {
   acceptNearbyShare,
   parseNearbyShare,
   type NearbySharePayload,
-} from '../lib/nearby';
-import { pairingFingerprint, pairingPayload, type Identity } from '../lib/identity';
-import { getIdentity } from '../lib/vault';
-import * as db from '../lib/db';
-import { sendBlob } from '../lib/relay';
-import { CardFace, Modal } from './common';
-import Scanner from './Scanner';
+} from '../../lib/nearby';
+import { pairingFingerprint, pairingPayload, type Identity } from '../../lib/identity';
+import { getIdentity } from '../../lib/vault';
+import * as db from '../../lib/db';
+import { sendBlob } from '../../lib/relay';
+import { CardFace, Modal } from '../components';
+import Scanner from '../components/Scanner';
 
 type Mode = 'scan' | 'code' | 'mine';
 
