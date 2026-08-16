@@ -137,6 +137,13 @@ async function blobIdFrom(res: Response): Promise<string> {
   }
 }
 
+function depositError(status: number): Error {
+  if (status === 404) {
+    return new Error('The other device is offline. Open CardVault there and try again.');
+  }
+  return new Error(`Relay deposit failed: ${status}`);
+}
+
 /** Signed POST /v1/blobs with one register-and-retry on 401. */
 async function depositBlob(
   identity: Identity,
@@ -165,10 +172,10 @@ async function depositBlob(
       headers: { 'content-type': 'application/json', ...retry.headers },
       body: retry.body,
     });
-    if (!res2.ok) throw new Error(`Relay deposit failed: ${res2.status}`);
+    if (!res2.ok) throw depositError(res2.status);
     return blobIdFrom(res2);
   }
-  if (!res.ok) throw new Error(`Relay deposit failed: ${res.status}`);
+  if (!res.ok) throw depositError(res.status);
   return blobIdFrom(res);
 }
 
