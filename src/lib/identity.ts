@@ -42,11 +42,18 @@ export function pairingPayload(identity: Identity): string {
 }
 
 /**
- * Short visual fingerprint of an X25519 public key. Same algorithm as the
- * native app (`SHA-256(pubHex)` → first 8 hex chars) so mixed web/native
- * pairing can compare numbers out of band and catch a relay swapping keys.
+ * Safety number for a pairing. Both devices hash the same two public keys
+ * (sorted, so order does not matter), then show the first 8 hex chars.
+ * Comparing this out of band catches a relay swapping keys.
+ *
+ * Must stay in lockstep with the native app's `pairingFingerprint`.
  */
-export async function pairingFingerprint(pubHex: string): Promise<string> {
-  const digest = await sha256Hex(pubHex);
-  return digest.slice(0, 8).toUpperCase();
+export async function pairingFingerprint(
+  pubHexA: string,
+  pubHexB: string
+): Promise<string> {
+  const [a, b] = [pubHexA.toLowerCase(), pubHexB.toLowerCase()].sort();
+  const digest = await sha256Hex(a + b);
+  const hex = digest.slice(0, 8).toUpperCase();
+  return `${hex.slice(0, 4)}-${hex.slice(4)}`;
 }

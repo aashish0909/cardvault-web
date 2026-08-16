@@ -6,22 +6,29 @@ import * as db from '../lib/db';
 import { pairingFingerprint } from '../lib/identity';
 import { sendBlob, unshareCard, useInboxStore } from '../lib/relay';
 import { useStore } from '../lib/store';
+import { getIdentity } from '../lib/vault';
 
 export default function FriendsTab({ onPair }: { onPair: () => void }) {
   const [peers, setPeers] = useState<db.PeerRow[] | null>(null);
   const [prints, setPrints] = useState<Record<string, string>>({});
+  const [myPub, setMyPub] = useState<string | null>(null);
   const inbox = useStore(useInboxStore);
+
+  useEffect(() => {
+    void getIdentity().then((id) => setMyPub(id.pubHex));
+  }, []);
 
   const reload = useCallback(() => {
     void db.listPeers().then((rows) => {
       setPeers(rows);
+      if (!myPub) return;
       void Promise.all(
         rows
           .filter((p) => p.status === 'pending')
-          .map(async (p) => [p.id, await pairingFingerprint(p.publicKey)] as const)
+          .map(async (p) => [p.id, await pairingFingerprint(myPub, p.publicKey)] as const)
       ).then((entries) => setPrints(Object.fromEntries(entries)));
     });
-  }, []);
+  }, [myPub]);
 
   useEffect(() => {
     reload();
@@ -101,11 +108,11 @@ export default function FriendsTab({ onPair }: { onPair: () => void }) {
               <div className="fingerprint-inline">
                 <span className="fingerprint-label">Fingerprint</span>{' '}
                 <span className="fingerprint mono">{prints[p.id]}</span>
-                {p.direction === 'in' && (
-                  <div className="muted">
-                    Match this with the number on their screen before accepting.
-                  </div>
-                )}
+                <div className="muted">
+                  {p.direction === 'in'
+                    ? 'This must match the number on their screen before you accept.'
+                    : 'They should see this same number on the pairing request.'}
+                </div>
               </div>
             )}
             <div className="row" style={{ marginTop: 10 }}>

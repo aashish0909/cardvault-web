@@ -40,6 +40,7 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
     payload: PairPayload;
     fingerprint: string;
   } | null>(null);
+  const [sent, setSent] = useState(false);
 
   const acceptPayload = async (payload: unknown) => {
     // Detect a nearby card-share QR (from the owner's "Share nearby") and
@@ -82,9 +83,11 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
       return;
     }
     setError(null);
+    const me = await getIdentity();
+    setSent(false);
     setPendingPair({
       payload: p as PairPayload,
-      fingerprint: await pairingFingerprint(p.pub),
+      fingerprint: await pairingFingerprint(me.pubHex, p.pub),
     });
   };
 
@@ -108,7 +111,8 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
         name: me.name,
         pub: me.pubHex,
       });
-      closeRef.current();
+      setSent(true);
+      setBusy(false);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -132,27 +136,41 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
     <Modal title="Pair with a friend" onClose={onClose} closeRef={closeRef}>
       {pendingPair ? (
         <>
-          <p className="muted">
-            Compare this fingerprint with the number on {pendingPair.payload.name}'s
-            screen before sending the request. If they differ, someone may be
-            intercepting the pairing.
-          </p>
+          {sent ? (
+            <p className="muted">
+              Request sent to {pendingPair.payload.name}. Keep this number
+              visible — it must match the fingerprint on their pairing request.
+              If the numbers differ, someone may be intercepting the pairing.
+            </p>
+          ) : (
+            <p className="muted">
+              Send the request, then compare this fingerprint with the number on{' '}
+              {pendingPair.payload.name}'s screen. Both of you see a number made
+              from both keys, so they must match. If they differ, do not pair.
+            </p>
+          )}
           <FingerprintBox value={pendingPair.fingerprint} />
           {error && <p className="error">{error}</p>}
-          <div className="row section-gap">
-            <button
-              className="btn"
-              onClick={() => {
-                setPendingPair(null);
-                setError(null);
-              }}
-            >
-              Cancel
+          {sent ? (
+            <button className="btn btn-primary btn-block section-gap" onClick={onClose}>
+              Done
             </button>
-            <button className="btn btn-primary" onClick={() => void confirmPair()} disabled={busy}>
-              Fingerprints match
-            </button>
-          </div>
+          ) : (
+            <div className="row section-gap">
+              <button
+                className="btn"
+                onClick={() => {
+                  setPendingPair(null);
+                  setError(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={() => void confirmPair()} disabled={busy}>
+                Send request
+              </button>
+            </div>
+          )}
         </>
       ) : share ? (
         <>
@@ -227,7 +245,7 @@ export default function PairModal({ onClose }: { onClose: () => void }) {
 function FingerprintBox({ value }: { value: string }) {
   return (
     <div className="fingerprint-box">
-      <div className="fingerprint-label">Key fingerprint</div>
+      <div className="fingerprint-label">Pairing fingerprint</div>
       <div className="fingerprint mono">{value}</div>
     </div>
   );
@@ -284,7 +302,6 @@ function MyQr() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [qrData, setQrData] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
-  const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = (id: Identity) => {
@@ -299,7 +316,6 @@ function MyQr() {
         const id = await getIdentity();
         setIdentity(id);
         refresh(id);
-        void pairingFingerprint(id.pubHex).then(setFingerprint);
         void createPairingCode()
           .then(setCode)
           .catch((e) => setError((e as Error).message));
@@ -324,17 +340,16 @@ function MyQr() {
 
   return (
     <div className="section-gap" style={{ textAlign: 'center' }}>
-      <p className="muted">Show this QR - or the code - to the friend who should pair with you.</p>
+      <p className="muted">
+        Show this QR — or the code — to the friend who should pair with you.
+        After they send a request, both of you will see the same fingerprint;
+        compare those numbers before you accept.
+      </p>
       {qrData && (
         <div className="qr-wrap">
           <img src={qrData} alt="Pairing QR" />
         </div>
       )}
-      {fingerprint && <FingerprintBox value={fingerprint} />}
-      <p className="muted">
-        Tell your friend this fingerprint. They must see the same number before
-        they send a pairing request.
-      </p>
       {code && <div className="code-display mono">{formatPairingCode(code)}</div>}
       {error && <p className="error">{error}</p>}
       <button type="button" className="btn" onClick={newCode}>
