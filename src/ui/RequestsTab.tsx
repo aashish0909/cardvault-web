@@ -16,7 +16,7 @@ import {
 } from '../lib/relay';
 import { useReveal, useRevealStore } from '../lib/reveal';
 import { getSessionKey } from '../lib/vault';
-import { Modal, Countdown } from './common';
+import { Modal, Countdown, DetailsReveal } from './common';
 import { CardLogo } from './CardLogo';
 
 const WINDOW_OPTIONS_MS = [2, 5, 10, 15].map((m) => ({ label: `${m} min`, ms: m * 60 * 1000 }));
@@ -28,7 +28,6 @@ export default function RequestsTab() {
   const [approveId, setApproveId] = useState<string | null>(null);
   const [otpForId, setOtpForId] = useState<string | null>(null);
   const inbox = useStore(useInboxStore);
-  const reveal = useReveal();
 
   const reload = useCallback(async () => {
     let rows = await db.listRequests();
@@ -266,6 +265,9 @@ function RequestCard({
         )}
       </div>
 
+      {r.direction === 'out' && r.status === 'approved' && r.kind === 'details' && (
+        <DetailsReveal cardId={r.cardId} />
+      )}
       {r.direction === 'out' && r.status === 'approved' && r.kind === 'otp' && (
         <OtpStatus requestId={r.id} />
       )}

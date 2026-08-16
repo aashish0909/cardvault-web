@@ -8,7 +8,7 @@
 // traffic never touches this worker (it goes straight to the relay origin,
 // not through here).
 
-const CACHE = 'cardvault-v5';
+const CACHE = 'cardvault-v6';
 const PRECACHE =
   typeof __PRECACHE_ASSETS__ !== 'undefined' ? __PRECACHE_ASSETS__ : [];
 
@@ -66,12 +66,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Hashed assets: network-first so a new deploy is not stuck behind an old
+  // cache entry. Fall back to cache when offline.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(async () => (await caches.match(request)) ?? Response.error())
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then(
       (cached) =>
         cached ??
         fetch(request).then((res) => {
-          if (res.ok && url.pathname.startsWith('/assets/')) {
+          if (res.ok) {
             const copy = res.clone();
             caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
           }

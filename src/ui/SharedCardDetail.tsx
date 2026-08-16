@@ -136,12 +136,15 @@ export default function SharedCardDetail({
       {detailsReq?.status === 'pending' && (
         <p className="muted">Details request sent - waiting for {ownerName}…</p>
       )}
-      {!hasDetails && detailsReq && detailsReq.status !== 'pending' && (
+      {!hasDetails && detailsReq && detailsReq.status === 'approved' && (
         <p className="muted">
-          {detailsReq.status === 'approved'
-            ? 'Details window ended.'
-            : `Details request ${detailsReq.status}.`}
+          {detailsReq.windowExpiresAt != null && detailsReq.windowExpiresAt > Date.now()
+            ? 'Approved — if details are not visible, request again.'
+            : 'Details window ended.'}
         </p>
+      )}
+      {!hasDetails && detailsReq && detailsReq.status !== 'pending' && detailsReq.status !== 'approved' && (
+        <p className="muted">{`Details request ${detailsReq.status}.`}</p>
       )}
 
       {hasDetails && (

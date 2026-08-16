@@ -341,10 +341,7 @@ export async function requestOtp(
   });
 }
 
-/** Owner approves a details request: opens the reveal window. For a nearby
- *  (offline) share the full details already sit sealed on the recipient, so
- *  the approval blob carries no secrets - card details never cross the
- *  internet. Relay shares receive them as before. */
+/** Owner approves a details request: sends the unlock package + opens the window. */
 export async function approveDetails(
   request: db.RequestRow,
   secrets: db.CardSecrets,
@@ -352,11 +349,10 @@ export async function approveDetails(
   ctx: Pick<IncomingCtx, 'setRequestStatus' | 'hasNearbyShare'> = defaultCtx
 ): Promise<void> {
   const expiresAt = Date.now() + windowMs;
-  const nearby = await ctx.hasNearbyShare(request.cardId, request.peerId);
   await sendBlob(request.peerId, 'details-approve', {
     requestId: request.id,
     cardId: request.cardId,
-    ...(nearby ? {} : { details: secrets }),
+    details: secrets,
     expiresAt,
   });
   await ctx.setRequestStatus(request.id, 'approved', expiresAt);
