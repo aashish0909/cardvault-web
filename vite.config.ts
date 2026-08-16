@@ -5,12 +5,27 @@
 // (plus VITE_RELAY_URL when the relay is hosted separately). Dev is looser
 // because Vite's HMR preamble is an inline module script.
 
+import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { devCert } from './scripts/dev-cert.mjs';
+
+function buildStamp(): string {
+  let sha = 'unknown';
+  try {
+    sha = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    // CI / unpacked tarball
+  }
+  const utc = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+  return `${sha} · ${utc}`;
+}
+
+// Baked into the client so Profile can show whether this PWA is the latest deploy.
+process.env.VITE_BUILD = process.env.VITE_BUILD || buildStamp();
 
 const RELAY_ORIGIN = process.env.VITE_RELAY_URL ?? '';
 const relayHost = (() => {

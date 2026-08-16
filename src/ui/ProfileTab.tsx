@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import type { Identity } from '../lib/identity';
+import { getBuildId } from '../lib/config';
 import { useAppInstall } from '../lib/install';
 import { currentPushSubscription, pushPermission, requestPush, sendTestPush } from '../lib/push';
 import { passkeySupportIssue } from '../lib/webauthn';
@@ -162,6 +163,7 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
       ) : (
         <p className="muted">Installable once you open this site over HTTPS.</p>
       )}
+      <p className="muted">Deploy {getBuildId()}</p>
 
       <h2 className="section-gap">Security</h2>
       <button className="btn btn-danger btn-block" onClick={onLock}>
