@@ -763,15 +763,17 @@ export async function pollInbox(
   const path = `/v1/blobs?deviceId=${identity.deviceId}`;
   const signed = await signRequest(identity, 'GET', path, '');
   const res = await fetch(`${getRelayUrl()}${path}`, {
+    cache: 'no-store',
     headers: signed.headers,
   }).catch(() => null);
   if (res && res.status === 401) {
     // Device record lost (e.g. relay restart): re-register, try once more.
     await registerDevice();
     const retry = await signRequest(identity, 'GET', path, '');
-    const res2 = await fetch(`${getRelayUrl()}${path}`, { headers: retry.headers }).catch(
-      () => null
-    );
+    const res2 = await fetch(`${getRelayUrl()}${path}`, {
+      cache: 'no-store',
+      headers: retry.headers,
+    }).catch(() => null);
     if (!res2 || !res2.ok) return 0;
     const data2 = (await res2.json()) as { blobs: RelayBlob[] };
     return enqueueApply(data2.blobs, ctx);
@@ -806,6 +808,7 @@ async function pollLoop(): Promise<void> {
       const path = `/v1/blobs?deviceId=${identity.deviceId}&wait=1`;
       const signed = await signRequest(identity, 'GET', path, '');
       const res = await fetch(`${getRelayUrl()}${path}`, {
+        cache: 'no-store',
         headers: signed.headers,
         signal: controller.signal,
       });

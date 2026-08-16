@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { lockVault, vaultStatus, type VaultStatus } from './lib/vault';
 import { requireWebCrypto } from './lib/crypto';
-import { registerDevice, startPolling, stopPolling } from './lib/relay';
+import { pollInbox, registerDevice, startPolling, stopPolling } from './lib/relay';
 import { setupPush } from './lib/push';
 import { useToasts } from './lib/notify';
 import Setup from './ui/Setup';
@@ -50,6 +50,7 @@ export default function App() {
     void (async () => {
       await registerDevice();
       await setupPush();
+      await pollInbox().catch(() => {});
     })();
     return () => stopPolling();
   }, [status]);
