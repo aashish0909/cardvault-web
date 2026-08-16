@@ -17,7 +17,8 @@ interface PushSubscriptionJSON {
 }
 
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
   const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
@@ -136,4 +137,19 @@ function setupPushInternal(opts: { request: boolean }): Promise<boolean> {
       active = null;
     });
   return active;
+}
+
+/** Ask the relay to send this device a test OS banner. */
+export async function sendTestPush(): Promise<boolean> {
+  try {
+    const identity = await getIdentity();
+    const signed = await signRequest(identity, 'POST', '/v1/push/test', '');
+    const res = await fetch(`${getRelayUrl()}/v1/push/test`, {
+      method: 'POST',
+      headers: signed.headers,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

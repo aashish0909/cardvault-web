@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import type { Identity } from '../lib/identity';
+import { getBuildId } from '../lib/config';
 import { useAppInstall } from '../lib/install';
-import { pushPermission, requestPush } from '../lib/push';
+import { currentPushSubscription, pushPermission, requestPush, sendTestPush } from '../lib/push';
 import { passkeySupportIssue } from '../lib/webauthn';
 import { sendNameUpdate } from '../lib/relay';
 import {
@@ -22,6 +23,8 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
   const [notificationPermission, setNotificationPermission] = useState<
     NotificationPermission | 'unsupported'
   >('unsupported');
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const install = useAppInstall();
@@ -35,7 +38,13 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
 
   useEffect(() => {
     void reload();
-    setNotificationPermission(pushPermission());
+    const refreshPush = () => {
+      setNotificationPermission(pushPermission());
+      void currentPushSubscription().then((sub) => setPushSubscribed(Boolean(sub)));
+    };
+    refreshPush();
+    window.addEventListener('cv-push-changed', refreshPush);
+    return () => window.removeEventListener('cv-push-changed', refreshPush);
   }, []);
 
   const saveName = async (e: React.FormEvent) => {
@@ -63,7 +72,19 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
   const enableNotifications = async () => {
     const enabled = await requestPush();
     setNotificationPermission(pushPermission());
+    setPushSubscribed(Boolean(await currentPushSubscription()) && enabled);
     setNote(enabled ? 'Notifications enabled.' : 'Notifications could not be enabled.');
+  };
+
+  const testNotifications = async () => {
+    setTestingPush(true);
+    const ok = await sendTestPush();
+    setTestingPush(false);
+    setNote(
+      ok
+        ? 'Test sent. Lock the phone or switch apps — a CardVault banner should appear.'
+        : 'Test failed. Enable notifications, then try again.'
+    );
   };
 
   const wipe = async () => {
@@ -103,8 +124,13 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
         <p className="muted">Push notifications are not supported in this browser.</p>
       ) : notificationPermission === 'denied' ? (
         <p className="muted">Notifications are blocked. Allow them in Settings → Notifications → CardVault.</p>
-      ) : notificationPermission === 'granted' ? (
-        <p className="muted">Alerts are on. You will be pinged even when CardVault is closed.</p>
+      ) : notificationPermission === 'granted' && pushSubscribed ? (
+        <>
+          <p className="muted">Alerts are on. You will be pinged even when CardVault is closed.</p>
+          <button className="btn" onClick={() => void testNotifications()} disabled={testingPush}>
+            {testingPush ? 'Sending…' : 'Send test notification'}
+          </button>
+        </>
       ) : (
         <button className="btn" onClick={() => void enableNotifications()}>
           Enable notifications
@@ -130,10 +156,14 @@ export default function ProfileTab({ onLock }: { onLock: () => void }) {
       ) : install.installed ? (
         <p className="muted">Running as an installed app.</p>
       ) : install.isIOS ? (
-        <p className="muted">To install: Share → Add to Home Screen.</p>
+        <p className="muted">
+          iOS home-screen apps cannot see this vault. Add to Home Screen before
+          creating a vault, then set up inside the app.
+        </p>
       ) : (
         <p className="muted">Installable once you open this site over HTTPS.</p>
       )}
+      <p className="muted">Deploy {getBuildId()}</p>
 
       <h2 className="section-gap">Security</h2>
       <button className="btn btn-danger btn-block" onClick={onLock}>

@@ -7,7 +7,7 @@
 // real hashed URLs. Navigations are network-first to stay current. Same-origin
 // /v1/* relay calls are excluded from fetch handling so they are never cached.
 
-const CACHE = 'cardvault-v10';
+const CACHE = 'cardvault-v12';
 const PRECACHE =
   typeof __PRECACHE_ASSETS__ !== 'undefined' ? __PRECACHE_ASSETS__ : [];
 

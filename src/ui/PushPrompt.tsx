@@ -1,9 +1,15 @@
-// In-app prompt so iPhone users actually grant Web Push. iOS only delivers
-// banners to a Home Screen PWA, and only after a tap-triggered permission.
+// Install / notification banners.
+//
+// iOS Home Screen apps have their own storage, separate from Safari. Prompting
+// "Add to Home Screen" *after* vault creation is how people lose the vault they
+// just made. Setup shows the install banner first; after unlock we only ask
+// for notification permission (which iOS only grants in the installed app).
 
 import { useEffect, useState } from 'react';
 
+import { useAppInstall } from '../lib/install';
 import {
+  currentPushSubscription,
   isIOS,
   isStandalonePwa,
   pushPermission,
@@ -11,33 +17,52 @@ import {
 } from '../lib/push';
 
 type Kind = 'hidden' | 'enable' | 'install' | 'blocked';
+type Phase = 'setup' | 'unlocked';
 
-const DISMISS_KEY = 'cv-push-prompt-dismissed';
+const PUSH_DISMISS_KEY = 'cv-push-prompt-dismissed';
+const INSTALL_DISMISS_KEY = 'cv-install-prompt-dismissed';
 
-export default function PushPrompt() {
+export default function PushPrompt({ phase = 'unlocked' }: { phase?: Phase }) {
   const [kind, setKind] = useState<Kind>('hidden');
   const [busy, setBusy] = useState(false);
+  const install = useAppInstall();
 
   useEffect(() => {
     const refresh = () => {
-      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(DISMISS_KEY)) {
+      if (phase === 'setup') {
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(INSTALL_DISMISS_KEY)) {
+          setKind('hidden');
+          return;
+        }
+        if (install.installed || isStandalonePwa()) {
+          setKind('hidden');
+          return;
+        }
+        if ((isIOS() && !isStandalonePwa()) || install.canPrompt) {
+          setKind('install');
+          return;
+        }
+        setKind('hidden');
+        return;
+      }
+
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(PUSH_DISMISS_KEY)) {
         setKind('hidden');
         return;
       }
       const perm = pushPermission();
       if (perm === 'granted') {
-        setKind('hidden');
-        return;
-      }
-      if (isIOS() && !isStandalonePwa()) {
-        setKind('install');
+        void currentPushSubscription().then((sub) => {
+          if (!sub) setKind('enable');
+          else setKind('hidden');
+        });
         return;
       }
       if (perm === 'denied') {
         setKind('blocked');
         return;
       }
-      if (perm === 'unsupported') {
+      if (perm === 'unsupported' || (isIOS() && !isStandalonePwa())) {
         setKind('hidden');
         return;
       }
@@ -46,11 +71,11 @@ export default function PushPrompt() {
     refresh();
     window.addEventListener('cv-push-changed', refresh);
     return () => window.removeEventListener('cv-push-changed', refresh);
-  }, []);
+  }, [phase, install.installed, install.canPrompt]);
 
   const dismiss = () => {
     try {
-      sessionStorage.setItem(DISMISS_KEY, '1');
+      sessionStorage.setItem(phase === 'setup' ? INSTALL_DISMISS_KEY : PUSH_DISMISS_KEY, '1');
     } catch {
       // private mode
     }
@@ -64,6 +89,12 @@ export default function PushPrompt() {
     if (ok) setKind('hidden');
   };
 
+  const addAsApp = async () => {
+    setBusy(true);
+    await install.promptInstall();
+    setBusy(false);
+  };
+
   if (kind === 'hidden') return null;
 
   return (
@@ -71,10 +102,17 @@ export default function PushPrompt() {
       {kind === 'install' && (
         <>
           <p>
-            Add CardVault to your Home Screen to get alerts when a friend requests
-            details or an OTP — even if this app is closed.
+            Add CardVault as an app before creating a vault. A home-screen app
+            has its own storage — installing after setup starts a new empty vault.
           </p>
-          <p className="muted">Safari → Share → Add to Home Screen, then open the icon and enable notifications.</p>
+          {isIOS() ? (
+            <p className="muted">
+              Safari → Share → Add to Home Screen, then open the icon and create
+              your vault there.
+            </p>
+          ) : (
+            <p className="muted">Install the app, then create your vault in it.</p>
+          )}
         </>
       )}
       {kind === 'enable' && (
@@ -90,6 +128,11 @@ export default function PushPrompt() {
         </p>
       )}
       <div className="push-prompt-actions">
+        {kind === 'install' && install.canPrompt && (
+          <button className="btn btn-primary" onClick={() => void addAsApp()} disabled={busy}>
+            {busy ? 'Adding…' : 'Add as an app'}
+          </button>
+        )}
         {kind === 'enable' && (
           <button className="btn btn-primary" onClick={() => void enable()} disabled={busy}>
             {busy ? 'Enabling…' : 'Enable notifications'}
