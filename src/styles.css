@@ -1143,6 +1143,31 @@ html.is-standalone .modal {
   margin-top: 2px;
 }
 
+.push-prompt {
+  margin: calc(10px + env(safe-area-inset-top, 0px)) 16px 0;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-dim);
+  border-radius: 12px;
+  padding: 12px 14px;
+  animation: toast-in 0.32s var(--spring);
+}
+
+.push-prompt p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.push-prompt p:last-of-type {
+  margin-bottom: 10px;
+}
+
+.push-prompt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .spacer {
   flex: 1;
 }

@@ -39,15 +39,18 @@ export default function App() {
     };
   }, []);
 
-  // Polling only while unlocked.
+  // Polling only while unlocked. Refresh web-push only if already granted —
+  // iOS will permanently deny if we prompt without a tap.
   useEffect(() => {
     if (status !== 'unlocked') {
       stopPolling();
       return;
     }
-    void registerDevice();
-    void setupPush();
     startPolling();
+    void (async () => {
+      await registerDevice();
+      await setupPush();
+    })();
     return () => stopPolling();
   }, [status]);
 

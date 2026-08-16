@@ -10,6 +10,7 @@ import { openEnvelope, sealTo } from './e2e';
 import { getIdentity } from './vault';
 import type { Identity } from './identity';
 import { notify } from './notify';
+import { currentPushSubscription } from './push';
 import { signRequest, signingPublicKeyHex } from './reqsig';
 import { useRevealStore, DETAILS_WINDOW_MS, OTP_WINDOW_MS } from './reveal';
 import * as db from './db';
@@ -82,11 +83,13 @@ const defaultCtx: IncomingCtx = {
 export async function registerDevice(): Promise<void> {
   try {
     const identity = await getIdentity();
+    const pushSubscription = await currentPushSubscription();
     const body = JSON.stringify({
       deviceId: identity.deviceId,
       pushToken: '',
       platform: 'web',
       signPub: await signingPublicKeyHex(identity),
+      ...(pushSubscription ? { pushSubscription } : {}),
     });
     const signed = await signRequest(identity, 'POST', '/v1/devices', body);
     await fetch(`${getRelayUrl()}/v1/devices`, {
