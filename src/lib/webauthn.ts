@@ -94,8 +94,12 @@ export async function createPasskey(
             displayName,
           },
           challenge: randomBytes(32),
+          // Chrome requires ES256 and RS256 in this list; omitting either
+          // warns and can fail registration on Windows Hello / older authenticators.
+          // https://chromium.googlesource.com/chromium/src/+/main/content/browser/webauth/pub_key_cred_params.md
           pubKeyCredParams: [
             { type: 'public-key', alg: -7 }, // ES256
+            { type: 'public-key', alg: -257 }, // RS256
             { type: 'public-key', alg: -8 }, // Ed25519
           ],
           authenticatorSelection: {

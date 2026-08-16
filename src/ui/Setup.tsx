@@ -10,6 +10,11 @@ import { createPasskeyEnrollment, passphraseIssue, setupVault } from '../lib/vau
 import { passkeySupportIssue } from '../lib/webauthn';
 import type { PasskeyEnrollment } from '../lib/webauthn';
 
+function inputValue(form: HTMLFormElement, name: string): string {
+  const el = form.elements.namedItem(name);
+  return el instanceof HTMLInputElement ? el.value : '';
+}
+
 export default function Setup({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('');
   const [pass, setPass] = useState('');
@@ -41,18 +46,26 @@ export default function Setup({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    if (name.trim().length < 1) return setError('Enter a display name for this device.');
-    const weak = passphraseIssue(pass);
+    // Read from the DOM, not React state: password managers often fill the
+    // inputs without firing onChange, so `pass`/`confirm` can disagree with
+    // what is actually on screen.
+    const form = e.currentTarget;
+    const displayName = inputValue(form, 'displayName');
+    const passphrase = inputValue(form, 'passphrase');
+    const passphraseConfirm = inputValue(form, 'passphraseConfirm');
+    if (displayName.trim().length < 1) return setError('Enter a display name for this device.');
+    const weak = passphraseIssue(passphrase);
     if (weak) return setError(weak);
-    if (pass !== confirm) return setError('Passphrases do not match.');
+    if (!passphraseConfirm) return setError('Re-enter the passphrase in the confirm field.');
+    if (passphrase !== passphraseConfirm) return setError('Passphrases do not match.');
     setBusy(true);
     try {
       await setupVault({
-        passphrase: pass,
-        displayName: name.trim(),
+        passphrase,
+        displayName: displayName.trim(),
         passkey: usePasskey && !passkeyIssue ? enrollment : null,
       });
       onDone();
@@ -76,9 +89,11 @@ export default function Setup({ onDone }: { onDone: () => void }) {
           <label htmlFor="name">Device name (shown to friends)</label>
           <input
             id="name"
+            name="displayName"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            autoComplete="off"
+            autoComplete="username"
+            autoCapitalize="words"
             maxLength={40}
           />
         </div>
@@ -86,10 +101,14 @@ export default function Setup({ onDone }: { onDone: () => void }) {
           <label htmlFor="pass">Passphrase</label>
           <input
             id="pass"
+            name="passphrase"
             type="password"
             value={pass}
             onChange={(e) => setPass(e.target.value)}
             autoComplete="new-password"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
           <p className="muted" style={{ fontSize: '0.85em' }}>
             At least 12 characters. This is the only recovery path if biometrics break.
@@ -99,10 +118,14 @@ export default function Setup({ onDone }: { onDone: () => void }) {
           <label htmlFor="confirm">Confirm passphrase</label>
           <input
             id="confirm"
+            name="passphraseConfirm"
             type="password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
         <label className="field" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

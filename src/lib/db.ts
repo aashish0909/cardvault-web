@@ -53,6 +53,12 @@ export interface ShareRow {
    * paired peer. Null for relay shares (looked up from the peer record).
    */
   publicKey: string | null;
+  /**
+   * True only for nearby (offline) shares. Must stay false for relay shares
+   * so details-approve still carries secrets over the relay. Older rows
+   * without this field are treated as relay shares.
+   */
+  nearby: boolean;
   createdAt: number;
 }
 
@@ -251,16 +257,25 @@ export async function deletePeer(deviceId: string): Promise<void> {
 
 // --- shares (owner side) --------------------------------------------------
 
+function normalizeShare(r: ShareRow): ShareRow {
+  return {
+    ...r,
+    name: r.name ?? null,
+    publicKey: r.publicKey ?? null,
+    nearby: r.nearby === true,
+  };
+}
+
 export async function listShares(cardId?: string): Promise<ShareRow[]> {
   const rows = await tx<ShareRow[]>('shares', 'readonly', (s) => s.getAll());
   const filtered = cardId ? rows.filter((r) => r.cardId === cardId) : rows;
-  return filtered.sort((a, b) => b.createdAt - a.createdAt);
+  return filtered.map(normalizeShare).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function addShare(
   cardId: string,
   peerId: string,
-  meta: { name?: string | null; publicKey?: string | null } = {}
+  meta: { name?: string | null; publicKey?: string | null; nearby?: boolean } = {}
 ): Promise<void> {
   await tx('shares', 'readwrite', (s) =>
     s.put({
@@ -269,6 +284,7 @@ export async function addShare(
       peerId,
       name: meta.name ?? null,
       publicKey: meta.publicKey ?? null,
+      nearby: meta.nearby === true,
       createdAt: Date.now(),
     })
   );
