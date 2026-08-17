@@ -100,7 +100,7 @@ export async function requestDetails(
   });
 }
 
-/** Request an OTP for an approved details window (borrower side). */
+/** Request an OTP from a paired friend (borrower side). Independent of details. */
 export async function requestOtp(
   peerId: string,
   cardId: string,

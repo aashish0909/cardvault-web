@@ -1,10 +1,9 @@
-// Shared card detail (borrower): request details, then request an OTP.
+// Shared card detail (borrower): request card details and/or an OTP.
 //
-// The consent flow is identical for every share: request details over the
-// relay, the owner approves with a reveal window. For offline (nearby)
-// shares the full details already sit sealed on this device - the approval
-// simply opens the window and the details are decrypted locally, so the card
-// details never travel over the internet.
+// Details and OTP are independent — you can ask for an OTP without opening a
+// details window. For offline (nearby) shares the full details already sit
+// sealed on this device; a details approval simply opens the window and the
+// secrets are decrypted locally, so they never travel over the internet.
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -87,6 +86,7 @@ export default function SharedCardDetail({
     (r) => r.kind === 'otp' && r.cardId === shared.ownerCardId && r.direction === 'out'
   );
   const otpReq = otpReqs[0];
+  const otpPending = otpReq?.status === 'pending';
   const hasDetails = !!reveal.details[shared.ownerCardId];
 
   const askDetails = async () => {
@@ -140,7 +140,7 @@ export default function SharedCardDetail({
           </button>
         </>
       )}
-      {otpReq && otpReq.status === 'pending' && (
+      {otpPending && (
         <p className="muted">OTP request sent - waiting for {ownerName}…</p>
       )}
 
@@ -169,9 +169,16 @@ export default function SharedCardDetail({
         <p className="muted">{`Details request ${detailsReq.status}.`}</p>
       )}
 
-      {hasDetails && (
+      {!otpPending && (
         <form onSubmit={askOtp} className="section-gap">
-          <h2>Request an OTP</h2>
+          <h2>
+            {otpReq &&
+            (otpReq.status === 'approved' ||
+              otpReq.status === 'expired' ||
+              otpReq.status === 'revoked')
+              ? 'Request another OTP'
+              : 'Request an OTP'}
+          </h2>
           <div className="row">
             <div className="field">
               <label htmlFor="otp-amount">Amount (₹)</label>
@@ -181,6 +188,7 @@ export default function SharedCardDetail({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
                 placeholder="2500"
+                required
               />
             </div>
             <div className="field">
@@ -194,7 +202,11 @@ export default function SharedCardDetail({
               />
             </div>
           </div>
-          <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
+          <button
+            className="btn btn-primary btn-block"
+            type="submit"
+            disabled={busy || !amount.trim()}
+          >
             Request OTP
           </button>
         </form>
