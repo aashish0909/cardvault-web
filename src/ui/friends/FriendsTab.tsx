@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import * as db from '../lib/db';
-import { pairingFingerprint } from '../lib/identity';
-import { sendBlob, unshareCard, useInboxStore } from '../lib/relay';
-import { useStore } from '../lib/store';
-import { getIdentity } from '../lib/vault';
+import * as db from '../../lib/db';
+import { pairingFingerprint } from '../../lib/identity';
+import { sendBlob, unshareCard, useInboxStore } from '../../lib/relay';
+import { useStore } from '../../lib/store';
+import { getIdentity } from '../../lib/vault';
 
 export default function FriendsTab({ onPair }: { onPair: () => void }) {
   const [peers, setPeers] = useState<db.PeerRow[] | null>(null);

@@ -4,9 +4,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import * as db from '../lib/db';
-import { unshareCard } from '../lib/relay';
-import { Modal } from './common';
+import * as db from '../../lib/db';
+import { unshareCard } from '../../lib/relay';
+import { Modal } from '../components';
 
 interface ShareEntry extends db.ShareRow {
   cardNickname: string;

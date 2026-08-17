@@ -3,19 +3,19 @@
 import { useState } from 'react';
 import { Inbox, Shield, Share2, User, Users } from 'lucide-react';
 
-import { lockVault } from '../lib/vault';
-import VaultTab from './VaultTab';
-import SharedTab from './SharedTab';
-import FriendsTab from './FriendsTab';
-import RequestsTab from './RequestsTab';
-import ProfileTab from './ProfileTab';
+import { lockVault } from '../../lib/vault';
+import VaultTab from '../vault/VaultTab';
+import SharedTab from '../shared/SharedTab';
+import FriendsTab from '../friends/FriendsTab';
+import RequestsTab from '../requests/RequestsTab';
+import ProfileTab from '../profile/ProfileTab';
 import PushPrompt from './PushPrompt';
-import AddCardModal from './AddCardModal';
-import CardDetail from './CardDetail';
-import ShareCardModal from './ShareCardModal';
-import PairModal from './PairModal';
-import NearbyReceiveModal from './NearbyReceiveModal';
-import ManageSharesModal from './ManageSharesModal';
+import AddCardModal from '../vault/AddCardModal';
+import CardDetail from '../vault/CardDetail';
+import ShareCardModal from '../vault/ShareCardModal';
+import PairModal from '../friends/PairModal';
+import NearbyReceiveModal from '../nearby/NearbyReceiveModal';
+import ManageSharesModal from '../vault/ManageSharesModal';
 
 type Tab = 'vault' | 'shared' | 'friends' | 'requests' | 'profile';
 

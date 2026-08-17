@@ -52,7 +52,7 @@ export async function pairingFingerprint(
   pubHexA: string,
   pubHexB: string
 ): Promise<string> {
-  const [a, b] = [pubHexA.toLowerCase(), pubHexB.toLowerCase()].sort();
+  const [a, b] = [pubHexA.toLowerCase(), pubHexB.toLowerCase()].sort() as [string, string];
   const digest = await sha256Hex(a + b);
   const hex = digest.slice(0, 8).toUpperCase();
   return `${hex.slice(0, 4)}-${hex.slice(4)}`;

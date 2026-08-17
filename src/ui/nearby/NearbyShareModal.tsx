@@ -12,13 +12,13 @@ import { useState } from 'react';
 import {
   buildNearbyShare,
   NEARBY_QR_TTL_MS,
-} from '../lib/nearby';
-import { qrDataUrl } from '../lib/qr';
-import { decryptJSON } from '../lib/crypto';
-import * as db from '../lib/db';
-import { getIdentity, getSessionKey } from '../lib/vault';
-import { Modal } from './common';
-import Scanner from './Scanner';
+} from '../../lib/nearby';
+import { qrDataUrl } from '../../lib/qr';
+import { decryptJSON } from '../../lib/crypto';
+import * as db from '../../lib/db';
+import { getIdentity, getSessionKey } from '../../lib/vault';
+import { Modal } from '../components';
+import Scanner from '../components/Scanner';
 
 interface PairPayload {
   v: number;

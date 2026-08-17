@@ -7,7 +7,7 @@ import {
   unlockBackoffMs,
   unlockWithPassphrase,
   unlockWithPasskey,
-} from '../lib/vault';
+} from '../../lib/vault';
 
 export default function Unlock({ onUnlocked }: { onUnlocked: () => void }) {
   const [passkey, setPasskey] = useState(false);

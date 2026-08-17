@@ -6,10 +6,10 @@
 
 import { useState } from 'react';
 
-import { createPasskeyEnrollment, passphraseIssue, setupVault } from '../lib/vault';
-import { passkeySupportIssue } from '../lib/webauthn';
-import type { PasskeyEnrollment } from '../lib/webauthn';
-import PushPrompt from './PushPrompt';
+import { createPasskeyEnrollment, passphraseIssue, setupVault } from '../../lib/vault';
+import { passkeySupportIssue } from '../../lib/webauthn';
+import type { PasskeyEnrollment } from '../../lib/webauthn';
+import PushPrompt from '../shell/PushPrompt';
 
 function inputValue(form: HTMLFormElement, name: string): string {
   const el = form.elements.namedItem(name);

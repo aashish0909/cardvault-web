@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import * as db from '../lib/db';
-import { useInboxStore } from '../lib/relay';
-import { useStore } from '../lib/store';
-import { CardFace, Modal } from './common';
+import * as db from '../../lib/db';
+import { useInboxStore } from '../../lib/relay';
+import { useStore } from '../../lib/store';
+import { CardFace, Modal } from '../components';
 import SharedCardDetail from './SharedCardDetail';
 
 export default function SharedTab({ onReceive }: { onReceive: () => void }) {

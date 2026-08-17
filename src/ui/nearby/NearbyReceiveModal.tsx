@@ -9,12 +9,12 @@
 
 import { useEffect, useState } from 'react';
 
-import { qrDataUrl } from '../lib/qr';
-import { acceptNearbyShare, parseNearbyShare, type NearbySharePayload } from '../lib/nearby';
-import { pairingPayload, type Identity } from '../lib/identity';
-import { getIdentity } from '../lib/vault';
-import { CardFace, Modal } from './common';
-import Scanner from './Scanner';
+import { qrDataUrl } from '../../lib/qr';
+import { acceptNearbyShare, parseNearbyShare, type NearbySharePayload } from '../../lib/nearby';
+import { pairingPayload, type Identity } from '../../lib/identity';
+import { getIdentity } from '../../lib/vault';
+import { CardFace, Modal } from '../components';
+import Scanner from '../components/Scanner';
 
 type Step = 'mine' | 'scan' | 'preview' | 'done';
 

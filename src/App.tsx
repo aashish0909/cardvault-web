@@ -11,9 +11,9 @@ import { requireWebCrypto } from './lib/crypto';
 import { pollInbox, registerDevice, startPolling, stopPolling } from './lib/relay';
 import { setupPush } from './lib/push';
 import { useToasts } from './lib/notify';
-import Setup from './ui/Setup';
-import Unlock from './ui/Unlock';
-import Main from './ui/Main';
+import Setup from './ui/auth/Setup';
+import Unlock from './ui/auth/Unlock';
+import Main from './ui/shell/Main';
 
 export const IDLE_LOCK_MS = 5 * 60 * 1000;
 
