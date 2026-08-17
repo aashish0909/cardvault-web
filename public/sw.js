@@ -7,7 +7,7 @@
 // real hashed URLs. Navigations are network-first to stay current. Same-origin
 // /v1/* relay calls are excluded from fetch handling so they are never cached.
 
-const CACHE = 'cardvault-v12';
+const CACHE = 'cardvault-v13';
 const PRECACHE =
   typeof __PRECACHE_ASSETS__ !== 'undefined' ? __PRECACHE_ASSETS__ : [];
 
@@ -114,6 +114,7 @@ self.addEventListener('push', (event) => {
   } catch {}
   // iOS revokes Web Push if a push event does not show a notification.
   // Unique tags so a second request does not replace the first banner.
+  const url = pathForKind(kind);
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
@@ -121,26 +122,54 @@ self.addEventListener('push', (event) => {
       badge: '/icons/icon-192.png',
       tag: `cardvault-${kind}-${Date.now()}`,
       renotify: true,
-      data: { url: '/' },
+      data: { url, kind },
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const data = event.notification.data || {};
+  const url = data.url || '/';
+  const kind = data.kind || '';
   event.waitUntil(
     (async () => {
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clients) {
         if ('focus' in client) {
           await client.focus();
+          client.postMessage({ type: 'notification-click', url, kind });
           return;
         }
       }
-      await self.clients.openWindow('/');
+      await self.clients.openWindow(url);
     })()
   );
 });
+
+function pathForKind(kind) {
+  switch (kind) {
+    case 'otp-request':
+      return '/?tab=requests&intent=otp';
+    case 'details-request':
+      return '/?tab=requests&intent=details';
+    case 'otp-approve':
+    case 'otp-deny':
+    case 'details-approve':
+    case 'details-deny':
+    case 'request-cancel':
+    case 'request-revoke':
+      return '/?tab=requests';
+    case 'pair-request':
+    case 'pair-accept':
+      return '/?tab=friends';
+    case 'card-share':
+    case 'card-unshare':
+      return '/?tab=shared';
+    default:
+      return '/';
+  }
+}
 
 self.addEventListener('pushsubscriptionchange', (event) => {
   event.waitUntil(

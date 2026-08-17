@@ -5,6 +5,7 @@ import { useStore } from '../../lib/store';
 
 import { decryptJSON } from '../../lib/crypto';
 import * as db from '../../lib/db';
+import { useDeepLink, useDeepLinkStore } from '../../lib/deepLink';
 import { maskedPan } from '../../lib/cards';
 import {
   approveDetails,
@@ -18,6 +19,7 @@ import { useReveal, useRevealStore } from '../../lib/reveal';
 import { getSessionKey } from '../../lib/vault';
 import { Modal, Countdown, DetailsReveal } from '../components';
 import { CardLogo } from '../components/CardLogo';
+import { OtpEntryModal } from './OtpEntryModal';
 
 const WINDOW_OPTIONS_MS = [2, 5, 10, 15].map((m) => ({ label: `${m} min`, ms: m * 60 * 1000 }));
 
@@ -27,7 +29,10 @@ export default function RequestsTab() {
   const [cards, setCards] = useState<Record<string, db.CardRow>>({});
   const [approveId, setApproveId] = useState<string | null>(null);
   const [otpForId, setOtpForId] = useState<string | null>(null);
+  const [highlightIds, setHighlightIds] = useState<string[]>([]);
+  const [intentWaited, setIntentWaited] = useState(false);
   const inbox = useStore(useInboxStore);
+  const link = useDeepLink();
 
   const reload = useCallback(async () => {
     let rows = await db.listRequests();
@@ -66,8 +71,39 @@ export default function RequestsTab() {
     return () => clearInterval(t);
   }, [reload, inbox.eventId]);
 
+  useEffect(() => {
+    if (!link?.intent) {
+      setIntentWaited(false);
+      return;
+    }
+    const t = window.setTimeout(() => setIntentWaited(true), 2500);
+    return () => window.clearTimeout(t);
+  }, [link?.intent]);
+
+  useEffect(() => {
+    if (!link || link.tab !== 'requests' || !link.intent || requests === null) return;
+    const pending = requests.filter(
+      (r) => r.direction === 'in' && r.status === 'pending' && r.kind === link.intent
+    );
+    if (pending.length === 1) {
+      const id = pending[0]!.id;
+      setHighlightIds([id]);
+      if (link.intent === 'otp') setOtpForId(id);
+      else setApproveId(id);
+      useDeepLinkStore.get().consume();
+      return;
+    }
+    if (pending.length > 1) {
+      setHighlightIds(pending.map((r) => r.id));
+      useDeepLinkStore.get().consume();
+      return;
+    }
+    if (inbox.eventId > 0 || intentWaited) useDeepLinkStore.get().consume();
+  }, [link, requests, inbox.eventId, intentWaited]);
+
   const peersName = (id: string) => names[id] ?? 'Friend';
   const cardFor = (id: string) => cards[id];
+  const otpReq = requests?.find((r) => r.id === otpForId) ?? null;
 
   return (
     <div className="screen">
@@ -93,6 +129,7 @@ export default function RequestsTab() {
                   r={r}
                   card={cardFor(r.cardId)}
                   peersName={peersName}
+                  highlight={highlightIds.includes(r.id)}
                   onApproveDetails={() => setApproveId(r.id)}
                   onApproveOtp={() => setOtpForId(r.id)}
                   onDeny={() => void denyRequest(r).then(reload)}
@@ -116,6 +153,7 @@ export default function RequestsTab() {
                     r={r}
                     card={cardFor(r.cardId)}
                     peersName={peersName}
+                    highlight={highlightIds.includes(r.id)}
                     onApproveDetails={() => setApproveId(r.id)}
                     onApproveOtp={() => setOtpForId(r.id)}
                     onDeny={() => void denyRequest(r).then(reload)}
@@ -145,13 +183,13 @@ export default function RequestsTab() {
           onClose={() => setApproveId(null)}
         />
       )}
-      {otpForId && (
+      {otpReq && (
         <OtpEntryModal
-          request={requests?.find((r) => r.id === otpForId)!}
+          request={otpReq}
+          card={cardFor(otpReq.cardId)}
+          peerName={peersName(otpReq.peerId)}
           onSubmit={async (otp) => {
-            const req = requests?.find((r) => r.id === otpForId);
-            if (!req) return;
-            await approveOtp(req, otp);
+            await approveOtp(otpReq, otp);
             setOtpForId(null);
             await reload();
           }}
@@ -166,6 +204,7 @@ function RequestCard({
   r,
   card,
   peersName,
+  highlight,
   onApproveDetails,
   onApproveOtp,
   onDeny,
@@ -175,14 +214,19 @@ function RequestCard({
   r: db.RequestRow;
   card: db.CardRow | undefined;
   peersName: (id: string) => string;
+  highlight: boolean;
   onApproveDetails: () => void;
   onApproveOtp: () => void;
   onDeny: () => void;
   onCancel: () => void;
   onRevoke: () => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlight) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [highlight]);
   return (
-    <div className="list-item req-card">
+    <div ref={ref} className={`list-item req-card${highlight ? ' highlight' : ''}`}>
       <div className="req-top">
         <span className="req-kind">{r.kind === 'details' ? 'Card details' : 'OTP'}</span>
         <span className={`badge ${r.status}`}>{r.status}</span>
@@ -324,57 +368,6 @@ function WindowPicker({
         ))}
       </div>
       {error && <p className="error">{error}</p>}
-    </Modal>
-  );
-}
-
-function OtpEntryModal({
-  request,
-  onSubmit,
-  onClose,
-}: {
-  request: db.RequestRow;
-  onSubmit: (otp: string) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [otp, setOtp] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const closeRef = useRef<() => void>(() => onClose());
-  return (
-    <Modal title="Enter OTP" onClose={onClose} closeRef={closeRef}>
-      <p className="muted">
-        The OTP is relayed end-to-end encrypted and shown to the borrower for
-        60 seconds.
-      </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (otp.trim().length < 4) return setError('Enter the OTP shown on the card screen.');
-          void onSubmit(otp.trim()).catch((err) => setError((err as Error).message));
-        }}
-      >
-        <div className="field section-gap">
-          <label htmlFor="otp-input">OTP</label>
-          <input
-            id="otp-input"
-            inputMode="numeric"
-            className="code-input mono"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            autoComplete="one-time-code"
-            autoFocus
-          />
-        </div>
-        {error && <p className="error">{error}</p>}
-        <div className="row">
-          <button className="btn btn-ghost" type="button" onClick={() => closeRef.current()}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" type="submit">
-            Send OTP
-          </button>
-        </div>
-      </form>
     </Modal>
   );
 }

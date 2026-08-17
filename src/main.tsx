@@ -3,6 +3,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { applyDeepLinkFromKind, applyDeepLinkFromUrl, captureLocationDeepLink } from './lib/deepLink';
 import { setupPush } from './lib/push';
 import './styles.css';
 
@@ -37,8 +38,17 @@ if ('serviceWorker' in navigator) {
   // The worker re-subscribed after a pushsubscriptionchange; mirror the new
   // subscription to the relay.
   navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'push-subscription-changed') {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'push-subscription-changed') {
       void setupPush();
+      return;
+    }
+    if (data.type === 'notification-click') {
+      if (typeof data.kind === 'string' && data.kind) applyDeepLinkFromKind(data.kind);
+      else if (typeof data.url === 'string') applyDeepLinkFromUrl(data.url);
     }
   });
 }
+
+captureLocationDeepLink();
