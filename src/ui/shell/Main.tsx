@@ -1,8 +1,9 @@
 // Main unlocked shell: bottom tabs + overlay navigation.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Inbox, Shield, Share2, User, Users } from 'lucide-react';
 
+import { useDeepLink, useDeepLinkStore, type TabId } from '../../lib/deepLink';
 import { lockVault } from '../../lib/vault';
 import VaultTab from '../vault/VaultTab';
 import SharedTab from '../shared/SharedTab';
@@ -17,7 +18,7 @@ import PairModal from '../friends/PairModal';
 import NearbyReceiveModal from '../nearby/NearbyReceiveModal';
 import ManageSharesModal from '../vault/ManageSharesModal';
 
-type Tab = 'vault' | 'shared' | 'friends' | 'requests' | 'profile';
+type Tab = TabId;
 
 export type Overlay =
   | { kind: 'add-card' }
@@ -36,7 +37,8 @@ const TABS: { id: Tab; label: string; Icon: typeof Shield }[] = [
 ];
 
 export default function Main({ onLocked }: { onLocked: () => void }) {
-  const [tab, setTab] = useState<Tab>('vault');
+  const link = useDeepLink();
+  const [tab, setTab] = useState<Tab>(() => useDeepLinkStore.get().link?.tab ?? 'vault');
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   const [overlay, setOverlay] = useState<Overlay | null>(null);
 
@@ -47,6 +49,20 @@ export default function Main({ onLocked }: { onLocked: () => void }) {
     setDirection(to > from ? 'next' : 'prev');
     setTab(next);
   };
+
+  useEffect(() => {
+    if (!link) return;
+    setTab((current) => {
+      if (current === link.tab) return current;
+      const from = TABS.findIndex((t) => t.id === current);
+      const to = TABS.findIndex((t) => t.id === link.tab);
+      setDirection(to > from ? 'next' : 'prev');
+      return link.tab;
+    });
+    if (link.tab !== 'requests' || link.intent == null) {
+      useDeepLinkStore.get().consume();
+    }
+  }, [link]);
 
   return (
     <>
